@@ -8,7 +8,7 @@ import { FilterTagBar } from '@/components/results/filter-tag-bar';
 import { ProductCard } from '@/components/results/product-card';
 import { EmptyState } from '@/components/results/empty-state';
 
-const BACKEND_URL = 'http://127.0.0.1:8000';
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL!;
 
 export function ResultsScreen() {
   const { conditions, tastes, budget, query, sort } = useFilterStore();
