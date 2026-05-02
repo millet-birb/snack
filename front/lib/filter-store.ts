@@ -20,6 +20,8 @@ interface FilterStore {
   setBudget: (budget: number) => void;
   setQuery: (query: string) => void;
   setSort: (sort: SortOption) => void;
+
+   goToResults: () => void;
 }
 
 export const useFilterStore = create<FilterStore>((set) => ({
@@ -28,7 +30,7 @@ export const useFilterStore = create<FilterStore>((set) => ({
   tastes: new Set<TasteTag>(),
   budget: 5000,
   query: '',
-  sort: 'score_desc',
+  sort: 'price_asc',
   selectedProduct: null,
 
   setCurrentView: (view) => set({ currentView: view }),
@@ -53,4 +55,6 @@ export const useFilterStore = create<FilterStore>((set) => ({
   setBudget: (budget) => set({ budget }),
   setQuery: (query) => set({ query }),
   setSort: (sort) => set({ sort }),
+  
+ goToResults: () => set({ currentView: 'results' }),
 }));

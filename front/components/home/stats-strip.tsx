@@ -2,7 +2,7 @@
 
 export function StatsStrip() {
   const stats = [
-    { value: '604', label: '검증된 제품' },
+    { value: '572', label: '검증된 제품' },
     { value: '8', label: '질환 필터' },
     { value: '30', label: '맛 카테고리' },
   ];

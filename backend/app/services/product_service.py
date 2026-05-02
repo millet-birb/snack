@@ -14,8 +14,8 @@ from app.services.filter_engine import (
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-CSV_PATH = BASE_DIR / "data" / "최종데이터 전처리.csv"
-IMAGE_CSV_PATH = BASE_DIR / "data" / "product_images.csv"
+CSV_PATH = BASE_DIR / "data" / "최종데이터 전처리_final.csv"
+IMAGE_CSV_PATH = BASE_DIR / "data" / "product_images_final.csv"
 
 CONDITION_MAP = {
     "알레르기": "알레르기",
@@ -51,6 +51,14 @@ def get_image_df() -> pd.DataFrame:
     image_df["품목명"] = image_df["품목명"].astype(str).str.strip()
     image_df["제조사명"] = image_df["제조사명"].astype(str).str.strip()
     image_df["image_url"] = image_df["image_url"].astype(str).str.strip()
+    
+
+    # 핵심: 품목명 + 제조사명 기준 중복 제거
+   #image_df = image_df.drop_duplicates(
+   #    subset=["품목명", "제조사명"],
+   #    keep="first"
+   #).reset_index(drop=True)
+
     return image_df
 
 @lru_cache(maxsize=1)
@@ -69,6 +77,14 @@ def get_base_df() -> pd.DataFrame:
             on=["품목명", "제조사명"],
             how="left"
         )
+     # merge 후 중복 방지
+    if "stable_id" in df.columns:
+        df = df.drop_duplicates(subset=["stable_id"], keep="first").reset_index(drop=True)
+    else:
+        df = df.drop_duplicates(
+            subset=["품목명", "제조사명", "price"],
+            keep="first"
+        ).reset_index(drop=True)
 
     if "taste_tags" not in df.columns:
         def _build_taste_tags(row):
@@ -86,18 +102,16 @@ def apply_query_filter(df: pd.DataFrame, query: str) -> pd.DataFrame:
     if not query:
         return df
 
-    q = query.strip().lower()
+    q = str(query).strip().lower()
     if not q:
         return df
-
+    
     def _match(row) -> bool:
-        fields = [
-            str(row.get("품목명", "")),
-            str(row.get("제조사명", "")),
-            str(row.get("원재료명", "")),
-        ]
-        text = " ".join(fields).lower()
-        return q in text
+        name = str(row.get("품목명", "")).strip().lower()
+        brand = str(row.get("제조사명", "")).strip().lower()
+        ingredients = str(row.get("원재료명", "")).strip().lower()
+
+        return q in name or q in brand or q in ingredients
 
     mask = df.apply(_match, axis=1)
     return df[mask].copy()
@@ -112,7 +126,7 @@ def apply_taste_filter(df: pd.DataFrame, tastes: list[str]) -> pd.DataFrame:
     def _has_taste(tags):
         if not isinstance(tags, list):
             return False
-        return any(tag in taste_set for tag in tags)
+        return all(taste in tags for taste in tastes)
 
     return df[df["taste_tags"].apply(_has_taste)].copy()
 
@@ -126,22 +140,48 @@ def apply_budget_filter(df: pd.DataFrame, budget: int) -> pd.DataFrame:
 
     return df[df["price_per_unit"] <= budget].copy()
 
-
 def apply_sort(df: pd.DataFrame, sort: str) -> pd.DataFrame:
     if df.empty:
         return df
 
-    if "score_per_price" not in df.columns:
-        df["score_per_price"] = df["nutrition_score"] / (df["price_per_unit"] + 1)
+    temp = df.copy()
 
-    if sort == "price_asc":
-        return df.sort_values("price_per_unit", ascending=True)
+    # 숫자형 강제
+    if "price" in temp.columns:
+        temp["price"] = pd.to_numeric(temp["price"], errors="coerce").fillna(0)
+    else:
+        temp["price"] = 0
+
+    if "price_per_unit" in temp.columns:
+        temp["price_per_unit"] = pd.to_numeric(temp["price_per_unit"], errors="coerce").fillna(0)
+    else:
+        temp["price_per_unit"] = 0
+
+    if "nutrition_score" in temp.columns:
+        temp["nutrition_score"] = pd.to_numeric(temp["nutrition_score"], errors="coerce").fillna(0)
+    else:
+        temp["nutrition_score"] = 0
+
+    # 기본값: 가격 낮은순
+    sort = (sort or "price_asc").strip()
+
     if sort == "price_desc":
-        return df.sort_values("price_per_unit", ascending=False)
-    if sort == "value_desc":
-        return df.sort_values("score_per_price", ascending=False)
+        return temp.sort_values(
+            by=["price", "nutrition_score"],
+            ascending=[False, False]
+        ).copy()
 
-    return df.sort_values("nutrition_score", ascending=False)
+    if sort == "score_desc":
+        return temp.sort_values(
+            by=["nutrition_score", "price"],
+            ascending=[False, True]
+        ).copy()
+
+    # 기본: price_asc
+    return temp.sort_values(
+        by=["price", "nutrition_score"],
+        ascending=[True, False]
+    ).copy()
 
 def serialize_product(row: pd.Series) -> dict:
     eval_data = row.get("eval", {}) or {}
@@ -182,7 +222,6 @@ def serialize_product(row: pd.Series) -> dict:
         "recommendationReason": str(row.get("recommendation_reason", "")),
     }
 
-
 def get_products(
     conditions: list[str],
     tastes: list[str],
@@ -201,13 +240,10 @@ def get_products(
 
     df = compute_nutrition_score(df)
 
-    if "score_per_price" not in df.columns:
-        df["score_per_price"] = df["nutrition_score"] / (df["price_per_unit"] + 1)
-
     df = apply_query_filter(df, query)
     df = apply_taste_filter(df, tastes)
     df = apply_budget_filter(df, budget)
-    df = apply_sort(df, sort)
+    df = apply_sort(df, sort or "price_asc")
 
     total = len(df)
     start = (page - 1) * per_page
@@ -228,8 +264,6 @@ def get_product_detail(product_id: str) -> Optional[dict]:
     df = get_base_df().copy()
     df = compute_nutrition_score(df)
 
-    if "score_per_price" not in df.columns:
-        df["score_per_price"] = df["nutrition_score"] / (df["price_per_unit"] + 1)
 
     def _id_of_row(row):
         return str(row.get("stable_id", row.name))
@@ -264,9 +298,17 @@ def get_product_detail(product_id: str) -> Optional[dict]:
     return serialize_product(row)
 
 def get_stats() -> dict:
-    df = get_base_df()
+    df = get_base_df().copy()
+
+    if "stable_id" in df.columns:
+        total_products = df["stable_id"].nunique()
+    else:
+        total_products = len(
+            df.drop_duplicates(subset=["품목명", "제조사명", "price"])
+        )
+
     return {
-        "totalProducts": int(len(df)),
+        "totalProducts": int(total_products),
         "totalConditions": 8,
         "totalTasteCategories": 30,
     }

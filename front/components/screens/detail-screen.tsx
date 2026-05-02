@@ -6,7 +6,8 @@ import { useFilterStore } from '@/lib/filter-store';
 import type { Product, Condition } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-const BACKEND_URL = 'http://127.0.0.1:8000';
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000';
 
 const ALL_CONDITIONS: Condition[] = [
   '알레르기',

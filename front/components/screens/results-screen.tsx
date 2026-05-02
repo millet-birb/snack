@@ -8,18 +8,25 @@ import { FilterTagBar } from '@/components/results/filter-tag-bar';
 import { ProductCard } from '@/components/results/product-card';
 import { EmptyState } from '@/components/results/empty-state';
 
-const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL!;
+const BACKEND_URL =
+  process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000';
 
 export function ResultsScreen() {
   const { conditions, tastes, budget, query, sort } = useFilterStore();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [page, setPage] = useState(1);
 
   const conditionList = useMemo(() => Array.from(conditions ?? []), [conditions]);
   const tasteList = useMemo(() => Array.from(tastes ?? []), [tastes]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [conditionList, tasteList, budget, query, sort]);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -32,31 +39,36 @@ export function ResultsScreen() {
           tastes: tasteList.join(','),
           budget: String(budget ?? 20000),
           query: query ?? '',
-          sort: sort ?? 'score_desc',
-          page: '1',
+          sort: sort ?? 'price_asc',
+          page: String(page),
           per_page: '20',
         });
 
-        const res = await fetch(`${BACKEND_URL}/api/products?${params.toString()}`);
+        const requestUrl = `${BACKEND_URL}/api/products?${params.toString()}`;
+        const res = await fetch(requestUrl);
+
         if (!res.ok) {
           throw new Error(`API 요청 실패: ${res.status}`);
         }
 
         const data = await res.json();
+
         setProducts(data.products ?? []);
         setTotal(data.total ?? 0);
+        setTotalPages(data.totalPages ?? 1);
       } catch (err) {
         console.error(err);
         setError('제품 목록을 불러오지 못했습니다.');
         setProducts([]);
         setTotal(0);
+        setTotalPages(1);
       } finally {
         setLoading(false);
       }
     };
 
     fetchProducts();
-  }, [conditionList, tasteList, budget, query, sort]);
+  }, [conditionList, tasteList, budget, query, sort, page]);
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -74,13 +86,41 @@ export function ResultsScreen() {
       ) : products.length === 0 ? (
         <EmptyState />
       ) : (
-        <div className="px-4 py-4">
-          <div className="grid grid-cols-2 gap-3">
-            {products.map((product, index) => (
-              <ProductCard key={product.id} product={product} index={index} />
-            ))}
+        <>
+          <div className="px-4 py-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+              {products.map((product, index) => (
+                <ProductCard key={product.id} product={product} index={index} />
+              ))}
+            </div>
           </div>
-        </div>
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-3 px-4 pb-8 pt-2">
+              <button
+                type="button"
+                disabled={page <= 1}
+                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                className="rounded-full border border-border-soft px-4 py-2 text-sm disabled:opacity-40"
+              >
+                이전
+              </button>
+
+              <span className="text-sm text-text-2">
+                {page} / {totalPages}
+              </span>
+
+              <button
+                type="button"
+                disabled={page >= totalPages}
+                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                className="rounded-full border border-border-soft px-4 py-2 text-sm disabled:opacity-40"
+              >
+                다음
+              </button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
