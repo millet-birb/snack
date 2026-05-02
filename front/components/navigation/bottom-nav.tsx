@@ -1,11 +1,11 @@
 'use client';
 
-import { Home, Search, Wallet, FileText, Baby } from 'lucide-react';
+import { Home, Search, FileText } from 'lucide-react';
 import { useFilterStore } from '@/lib/filter-store';
 import { cn } from '@/lib/utils';
 
 type NavItem = {
-  id: 'home' | 'search' | 'budget' | 'blog' | 'profile';
+  id: 'home' | 'search' | 'news';
   icon: typeof Home;
   label: string;
   view: 'home' | 'results' | 'detail';
@@ -14,13 +14,11 @@ type NavItem = {
 const navItems: NavItem[] = [
   { id: 'home', icon: Home, label: '홈', view: 'home' },
   { id: 'search', icon: Search, label: '검색', view: 'results' },
-  { id: 'budget', icon: Wallet, label: '예산조합', view: 'home' }, // Future feature
-  { id: 'blog', icon: FileText, label: '블로그', view: 'home' }, // Future feature
-  { id: 'profile', icon: Baby, label: '내 아이', view: 'home' }, // Future feature
+  { id: 'news', icon: FileText, label: '최신 이슈', view: 'home' }, // Future feature
 ];
 
 export function BottomNav() {
-  const { currentView, setView } = useFilterStore();
+  const { currentView, setCurrentView } = useFilterStore();
 
   const getActiveItem = (): string => {
     if (currentView === 'home') return 'home';
@@ -32,9 +30,9 @@ export function BottomNav() {
 
   const handleNavClick = (item: NavItem) => {
     if (item.id === 'home') {
-      setView('home');
+      setCurrentView('home');
     } else if (item.id === 'search') {
-      setView('results');
+      setCurrentView('results');
     } else {
       // Future features - show toast or do nothing
       alert(`${item.label} 기능은 곧 출시 예정이에요! 🚀`);
@@ -53,20 +51,22 @@ export function BottomNav() {
               key={item.id}
               onClick={() => handleNavClick(item)}
               className={cn(
-                "flex flex-col items-center gap-0.5 py-1 px-4 transition-all",
-                isActive ? "text-primary" : "text-text-3"
+                'flex flex-col items-center gap-0.5 py-1 px-4 transition-all',
+                isActive ? 'text-primary' : 'text-text-3'
               )}
             >
-              <Icon 
+              <Icon
                 className={cn(
-                  "w-6 h-6 transition-transform",
-                  isActive && "scale-110"
-                )} 
+                  'w-6 h-6 transition-transform',
+                  isActive && 'scale-110'
+                )}
               />
-              <span className={cn(
-                "text-[10px] font-medium",
-                isActive && "font-semibold"
-              )}>
+              <span
+                className={cn(
+                  'text-[10px] font-medium',
+                  isActive && 'font-semibold'
+                )}
+              >
                 {item.label}
               </span>
             </button>
