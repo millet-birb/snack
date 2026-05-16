@@ -236,10 +236,10 @@ export function DetailScreen() {
 
           <button
             type="button"
-            onClick={() => alert('쿠팡 연동 준비 중이에요 🏪')}
+            onClick={() => alert('CU 편의점 앱 연동 준비 중이에요 🏪')}
             className="mt-6 w-full rounded-[24px] bg-primary px-4 py-4 text-base font-semibold text-white shadow-sm"
           >
-            🛒 쿠팡에서 구매하기
+            🛒 CU에서 구매하기
           </button>
 
           {loading && (

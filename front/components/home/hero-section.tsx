@@ -59,7 +59,7 @@ export function HeroSection() {
             과자 찾아드릴게요
           </h2>
           <p className="text-sm text-text-2 max-w-[280px] mx-auto text-pretty">
-            질환·예산·취향을 입력하면 564개 제품 중 안심 과자를 바로 추천해요
+            질환·예산·취향을 입력하면 572개 제품 중 안심 과자를 바로 추천해요
           </p>
         </div>
 

@@ -4,33 +4,223 @@ from typing import Optional
 
 import pandas as pd
 
-from typing import Optional
-
-import pandas as pd
-
 from app.services.filter_engine import (
     load_data,
     filter_safe_products,
     compute_nutrition_score,
     tag_taste,
     evaluate_product,
-    tag_taste,
 )
-from app.services.product_repository import get_base_df
-from app.services.product_filters import (
-    normalize_conditions,
-    apply_query_filter,
-    apply_taste_filter,
-    apply_budget_filter,
-    apply_sort,
-)
-from app.services.product_serializer import serialize_product
+
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 CSV_PATH = BASE_DIR / "data" / "최종데이터 전처리_final.csv"
 IMAGE_CSV_PATH = BASE_DIR / "data" / "product_images_final.csv"
-DEFAULT_IMAGE_URL = "/product-images/과자.png"
+
+CONDITION_MAP = {
+    "알레르기": "알레르기",
+    "아토피": "아토피",
+    "소아천식": "천식",
+    "유당불내증": "유당불내증",
+    "아나필락시스": "아나필락시스",
+    "소아비만": "소아비만",
+    "소아당뇨": "소아당뇨",
+    "카페인": "카페인주의",
+}
 
 
+def normalize_conditions(conditions: list[str]) -> list[str]:
+    normalized = []
+    for cond in conditions:
+        mapped = CONDITION_MAP.get(cond, cond)
+        normalized.append(mapped)
+    return normalized
+
+
+def _safe_number(value, default=0):
+    if pd.isna(value):
+        return default
+    return value
+
+@lru_cache(maxsize=1)
+def get_image_df() -> pd.DataFrame:
+    if not IMAGE_CSV_PATH.exists():
+        return pd.DataFrame(columns=["품목명", "제조사명", "image_url"])
+
+    image_df = pd.read_csv(IMAGE_CSV_PATH, dtype=str).fillna("")
+    image_df["품목명"] = image_df["품목명"].astype(str).str.strip()
+    image_df["제조사명"] = image_df["제조사명"].astype(str).str.strip()
+    image_df["image_url"] = image_df["image_url"].astype(str).str.strip()
+    
+
+    # 핵심: 품목명 + 제조사명 기준 중복 제거
+   #image_df = image_df.drop_duplicates(
+   #    subset=["품목명", "제조사명"],
+   #    keep="first"
+   #).reset_index(drop=True)
+
+    return image_df
+
+@lru_cache(maxsize=1)
+def get_base_df() -> pd.DataFrame:
+    df = load_data(str(CSV_PATH))
+
+    if "품목명" in df.columns:
+        df["품목명"] = df["품목명"].astype(str).str.strip()
+    if "제조사명" in df.columns:
+        df["제조사명"] = df["제조사명"].astype(str).str.strip()
+
+    image_df = get_image_df()
+    if not image_df.empty:
+        df = df.merge(
+            image_df[["품목명", "제조사명", "image_url"]],
+            on=["품목명", "제조사명"],
+            how="left"
+        )
+     # merge 후 중복 방지
+    if "stable_id" in df.columns:
+        df = df.drop_duplicates(subset=["stable_id"], keep="first").reset_index(drop=True)
+    else:
+        df = df.drop_duplicates(
+            subset=["품목명", "제조사명", "price"],
+            keep="first"
+        ).reset_index(drop=True)
+
+    if "taste_tags" not in df.columns:
+        def _build_taste_tags(row):
+            ingredients = str(row.get("원재료명", "") or "")
+            name = str(row.get("품목명", "") or "")
+            try:
+                return tag_taste(ingredients, name)
+            except Exception:
+                return []
+        df["taste_tags"] = df.apply(_build_taste_tags, axis=1)
+
+    return df
+
+def apply_query_filter(df: pd.DataFrame, query: str) -> pd.DataFrame:
+    if not query:
+        return df
+
+    q = str(query).strip().lower()
+    if not q:
+        return df
+    
+    def _match(row) -> bool:
+        name = str(row.get("품목명", "")).strip().lower()
+        brand = str(row.get("제조사명", "")).strip().lower()
+        ingredients = str(row.get("원재료명", "")).strip().lower()
+
+        return q in name or q in brand or q in ingredients
+
+    mask = df.apply(_match, axis=1)
+    return df[mask].copy()
+
+
+def apply_taste_filter(df: pd.DataFrame, tastes: list[str]) -> pd.DataFrame:
+    if not tastes:
+        return df
+
+    taste_set = set(tastes)
+
+    def _has_taste(tags):
+        if not isinstance(tags, list):
+            return False
+        return all(taste in tags for taste in tastes)
+
+    return df[df["taste_tags"].apply(_has_taste)].copy()
+
+
+def apply_budget_filter(df: pd.DataFrame, budget: int) -> pd.DataFrame:
+    if not budget:
+        return df
+
+    if "price_per_unit" not in df.columns:
+        return df
+
+    return df[df["price_per_unit"] <= budget].copy()
+
+def apply_sort(df: pd.DataFrame, sort: str) -> pd.DataFrame:
+    if df.empty:
+        return df
+
+    temp = df.copy()
+
+    # 숫자형 강제
+    if "price" in temp.columns:
+        temp["price"] = pd.to_numeric(temp["price"], errors="coerce").fillna(0)
+    else:
+        temp["price"] = 0
+
+    if "price_per_unit" in temp.columns:
+        temp["price_per_unit"] = pd.to_numeric(temp["price_per_unit"], errors="coerce").fillna(0)
+    else:
+        temp["price_per_unit"] = 0
+
+    if "nutrition_score" in temp.columns:
+        temp["nutrition_score"] = pd.to_numeric(temp["nutrition_score"], errors="coerce").fillna(0)
+    else:
+        temp["nutrition_score"] = 0
+
+    # 기본값: 가격 낮은순
+    sort = (sort or "price_asc").strip()
+
+    if sort == "price_desc":
+        return temp.sort_values(
+            by=["price", "nutrition_score"],
+            ascending=[False, False]
+        ).copy()
+
+    if sort == "score_desc":
+        return temp.sort_values(
+            by=["nutrition_score", "price"],
+            ascending=[False, True]
+        ).copy()
+
+    # 기본: price_asc
+    return temp.sort_values(
+        by=["price", "nutrition_score"],
+        ascending=[True, False]
+    ).copy()
+
+def serialize_product(row: pd.Series) -> dict:
+    eval_data = row.get("eval", {}) or {}
+
+    product_id = str(row.get("stable_id", row.name))
+
+    return {
+        "id": product_id,
+        "reportNumber": str(row.get("품목제조보고번호", "")),
+        "brand": str(row.get("제조사명", "")),
+        "name": str(row.get("품목명", "")),
+        "foodType": str(row.get("식품유형", "")),
+        "price": int(_safe_number(row.get("price", row.get("가격", 0)), 0)),
+        "pricePerUnit": int(_safe_number(row.get("price_per_unit", 0), 0)),
+        "servingG": float(_safe_number(row.get("serving_g", 0), 0)),
+        "nutritionScore": float(_safe_number(row.get("nutrition_score", 0), 0)),
+        "scorePerPrice": float(_safe_number(row.get("score_per_price", 0), 0)),
+        "tasteTags": row.get("taste_tags", []) if isinstance(row.get("taste_tags", []), list) else [],
+        "safeFor": eval_data.get("safe_for", []),
+        "warnFor": eval_data.get("warn_for", []),
+        "warnIngredients": eval_data.get("warn_ingredients", {}),
+        "nutrition": {
+            "caloriesKcal": float(_safe_number(row.get("에너지(kcal)", row.get("열량(kcal)", 0)), 0)),
+            "carbsG": float(_safe_number(row.get("탄수화물(g)", 0), 0)),
+            "sugarG": float(_safe_number(row.get("당류(g)", 0), 0)),
+            "proteinG": float(_safe_number(row.get("단백질(g)", 0), 0)),
+            "fatG": float(_safe_number(row.get("지방(g)", 0), 0)),
+            "saturatedFatG": float(_safe_number(row.get("포화지방산(g)", 0), 0)),
+            "transFatG": float(_safe_number(row.get("트랜스지방(g)", row.get("트랜스지방산(g)", 0)), 0)),
+            "cholesterolMg": float(_safe_number(row.get("콜레스테롤(mg)", 0), 0)),
+            "sodiumMg": float(_safe_number(row.get("나트륨(mg)", 0), 0)),
+            "calciumMg": float(_safe_number(row.get("칼슘(mg)", 0), 0)),
+            "ironMg": float(_safe_number(row.get("철(mg)", 0), 0)),
+            "fiberG": float(_safe_number(row.get("식이섬유(g)", 0), 0)),
+        },
+        "ingredientsRaw": str(row.get("원재료명", "")),
+        "imageUrl": str(row.get("image_url", "")).strip() or None,
+        "recommendationReason": str(row.get("recommendation_reason", "")),
+    }
 
 def get_products(
     conditions: list[str],
