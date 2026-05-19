@@ -6,6 +6,7 @@ import { Splash } from '@/components/splash';
 import { HomeScreen } from '@/components/screens/home-screen';
 import { ResultsScreen } from '@/components/screens/results-screen';
 import { DetailScreen } from '@/components/screens/detail-screen';
+import { GroupPurchaseScreen } from '@/components/screens/group-purchase-screen';  // 추가
 import { BottomNav } from '@/components/navigation/bottom-nav';
 
 export function SnackApp() {
@@ -20,6 +21,8 @@ export function SnackApp() {
         return <ResultsScreen />;
       case 'detail':
         return <DetailScreen />;
+      case 'group':
+        return <GroupPurchaseScreen />;  // 추가
       default:
         return <HomeScreen />;
     }
@@ -31,7 +34,7 @@ export function SnackApp() {
         <Splash onComplete={() => setShowSplash(false)} />
       )}
       
-      <main className="pb-20">
+      <main className="pb-20 max-w-4xl mx-auto">
         {renderScreen()}
       </main>
 

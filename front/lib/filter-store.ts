@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { Product, Condition, TasteTag, SortOption } from '@/lib/types';
 
-type ViewType = 'home' | 'results' | 'detail';
+type ViewType = 'home' | 'results' | 'detail' | 'group';  // group 추가
 
 interface FilterStore {
   currentView: ViewType;
@@ -21,7 +21,8 @@ interface FilterStore {
   setQuery: (query: string) => void;
   setSort: (sort: SortOption) => void;
 
-   goToResults: () => void;
+  goToResults: () => void;
+  goToGroup: () => void;  // group 뷰로 이동
 }
 
 export const useFilterStore = create<FilterStore>((set) => ({
@@ -55,6 +56,7 @@ export const useFilterStore = create<FilterStore>((set) => ({
   setBudget: (budget) => set({ budget }),
   setQuery: (query) => set({ query }),
   setSort: (sort) => set({ sort }),
-  
- goToResults: () => set({ currentView: 'results' }),
+
+  goToResults: () => set({ currentView: 'results' }),
+  goToGroup: () => set({ currentView: 'group' }),
 }));

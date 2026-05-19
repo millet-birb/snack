@@ -127,13 +127,14 @@ RISK_KEYWORDS = {
 }
 
 
-def detect_risks(ingredient_text: str, risk_keys: list) -> list:
+def detect_risks(ingredient_text: str, risk_keys: list, product_name: str = "") -> list:
     found = []
     ingredient_text = ingredient_text or ""
+    product_name = product_name or ""
 
     for key in risk_keys:
         for kw in RISK_KEYWORDS.get(key, []):
-            if kw in ingredient_text and kw not in found:
+            if (kw in ingredient_text or kw in product_name) and kw not in found:
                 found.append(kw)
 
     return found
@@ -148,14 +149,34 @@ CONDITION_RULE_MAP = {
         "알레르기_오징어", "알레르기_땅콩", "알레르기_호두", "알레르기_잣",
         "알레르기_아황산",
     ],
-    "아토피": ["알레르기_밀", "알레르기_우유", "알레르기_계란", "아토피_방부제"],
-    "천식": ["천식_아황산염"],
-    "유당불내증": ["유당불내증"],
+    # 개별 알레르기 항목 (세분화 선택용)
+    "알레르기_밀":       ["알레르기_밀"],
+    "알레르기_메밀":     ["알레르기_메밀"],
+    "알레르기_대두":     ["알레르기_대두"],
+    "알레르기_복숭아":   ["알레르기_복숭아"],
+    "알레르기_귤오렌지": ["알레르기_귤오렌지"],
+    "알레르기_토마토":   ["알레르기_토마토"],
+    "알레르기_돼지고기": ["알레르기_돼지고기"],
+    "알레르기_닭고기":   ["알레르기_닭고기"],
+    "알레르기_계란":     ["알레르기_계란"],
+    "알레르기_우유":     ["알레르기_우유"],
+    "알레르기_고등어":   ["알레르기_고등어"],
+    "알레르기_게":       ["알레르기_게"],
+    "알레르기_조개":     ["알레르기_조개"],
+    "알레르기_새우":     ["알레르기_새우"],
+    "알레르기_오징어":   ["알레르기_오징어"],
+    "알레르기_땅콩":     ["알레르기_땅콩"],
+    "알레르기_호두":     ["알레르기_호두"],
+    "알레르기_잣":       ["알레르기_잣"],
+    "알레르기_아황산":   ["알레르기_아황산"],
+    "아토피":       ["알레르기_밀", "알레르기_우유", "알레르기_계란", "아토피_방부제"],
+    "천식":         ["천식_아황산염"],
+    "유당불내증":   ["유당불내증"],
     "아나필락시스": ["아나필락시스"],
-    "소아비만": ["비만당뇨_정제탄수화물", "비만당뇨_당류", "비만당뇨_나쁜기름"],
-    "소아당뇨": ["비만당뇨_정제탄수화물", "비만당뇨_당류", "비만당뇨_나쁜기름"],
+    "소아비만":     ["비만당뇨_정제탄수화물", "비만당뇨_당류", "비만당뇨_나쁜기름"],
+    "소아당뇨":     ["비만당뇨_정제탄수화물", "비만당뇨_당류", "비만당뇨_나쁜기름"],
     "알레르기비염": [],
-    "카페인주의": ["카페인"],
+    "카페인주의":   ["카페인"],
 }
 
 
@@ -196,10 +217,11 @@ def evaluate_product(row, conditions: list) -> dict:
     }
 
     ing = row.get("원재료명", "") or ""
+    product_name = row.get("품목명", "") or ""
 
     for cond in conditions:
         risk_keys = CONDITION_RULE_MAP.get(cond, [])
-        found = detect_risks(ing, risk_keys)
+        found = detect_risks(ing, risk_keys, product_name)
 
         if found:
             result["warn_for"].append(cond)

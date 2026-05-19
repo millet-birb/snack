@@ -1,12 +1,34 @@
 // Condition types for filtering
-export type Condition = 
-  | '알레르기' 
-  | '아토피' 
-  | '소아천식' 
-  | '유당불내증' 
-  | '아나필락시스' 
-  | '소아비만' 
-  | '소아당뇨' 
+export type AllergySubCondition =
+  | '알레르기_밀'
+  | '알레르기_메밀'
+  | '알레르기_대두'
+  | '알레르기_복숭아'
+  | '알레르기_귤오렌지'
+  | '알레르기_토마토'
+  | '알레르기_돼지고기'
+  | '알레르기_닭고기'
+  | '알레르기_계란'
+  | '알레르기_우유'
+  | '알레르기_고등어'
+  | '알레르기_게'
+  | '알레르기_조개'
+  | '알레르기_새우'
+  | '알레르기_오징어'
+  | '알레르기_땅콩'
+  | '알레르기_호두'
+  | '알레르기_잣'
+  | '알레르기_아황산';
+
+export type Condition =
+  | '알레르기'
+  | AllergySubCondition
+  | '아토피'
+  | '소아천식'
+  | '유당불내증'
+  | '아나필락시스'
+  | '소아비만'
+  | '소아당뇨'
   | '카페인';
 
 // Taste categories
@@ -32,7 +54,7 @@ export interface Product {
   tasteTags: TasteTag[];
   safeFor: Condition[];
   warnFor: Condition[];
-  warnIngredients: Record<Condition, string[]>;
+  warnIngredients: Record<string, string[]>;
   nutrition: {
     caloriesKcal: number;
     carbsG: number;
@@ -80,6 +102,13 @@ export interface ConditionMeta {
   icon: string;
   bgColor: string;
   description: string;
+  subConditions?: AllergySubConditionMeta[];  // 알레르기 세부 항목
+}
+
+export interface AllergySubConditionMeta {
+  id: AllergySubCondition;
+  label: string;
+  emoji: string;
 }
 
 // Taste metadata
