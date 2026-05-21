@@ -1,10 +1,13 @@
 'use client';
 
+import { useStats } from '@/hooks/use-stats';
+
 export function StatsStrip() {
+  const { totalProducts, totalConditions, totalTasteCategories } = useStats();
   const stats = [
-    { value: '564', label: '검증된 제품' },
-    { value: '8', label: '질환 필터' },
-    { value: '30', label: '맛 카테고리' },
+    { value: String(totalProducts), label: '검증된 제품' },
+    { value: String(totalConditions), label: '질환 필터' },
+    { value: String(totalTasteCategories), label: '맛 카테고리' },
   ];
 
   return (

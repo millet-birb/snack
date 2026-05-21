@@ -2,9 +2,11 @@
 
 import { useFilterStore } from '@/lib/filter-store';
 import { FactsSlider } from '@/components/home/facts-slider';
+import { useStats } from '@/hooks/use-stats';
 
 export function HeroSection() {
   const { goToResults } = useFilterStore();
+  const { totalProducts } = useStats();
 
   return (
     <section className="relative overflow-hidden bg-gradient-to-b from-[#FFFAF3] via-[#FFE9DA] to-[#FFF5EC]">
@@ -54,7 +56,7 @@ export function HeroSection() {
             우리 아이에게 딱 맞는 과자 찾아드릴게요!
           </h2>
           <p className="text-sm text-text-2 mx-auto">
-            질환·예산·취향으로 564개 제품 중 안심 과자를 찾아드려요
+            질환·예산·취향으로 {totalProducts}개 제품 중 안심 과자를 찾아드려요
           </p>
         </div>
 
