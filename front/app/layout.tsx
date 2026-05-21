@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next'
-import { Noto_Sans_KR, Black_Han_Sans, DM_Serif_Display, Geist_Mono } from 'next/font/google'
+import { Noto_Sans_KR, Jua, DM_Serif_Display, Geist_Mono } from 'next/font/google'
 import { Analytics } from '@vercel/analytics/next'
 import './globals.css'
 
@@ -9,7 +9,7 @@ const notoSansKR = Noto_Sans_KR({
   variable: '--font-sans',
 })
 
-const blackHanSans = Black_Han_Sans({ 
+const jua = Jua({ 
   subsets: ['latin'],
   weight: '400',
   variable: '--font-display',
@@ -64,7 +64,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="ko" className={`${notoSansKR.variable} ${blackHanSans.variable} ${dmSerifDisplay.variable} ${geistMono.variable}`}>
+    <html lang="ko" className={`${notoSansKR.variable} ${jua.variable} ${dmSerifDisplay.variable} ${geistMono.variable}`}>
       <body className="font-sans antialiased bg-background">
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}

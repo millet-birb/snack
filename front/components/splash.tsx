@@ -20,32 +20,33 @@ export function Splash({ onComplete }: SplashProps) {
   }, [onComplete]);
 
   return (
-    <div 
-      className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-primary transition-opacity duration-500 ${
-        isVisible ? 'opacity-100' : 'opacity-0'
-      }`}
+    <div
+      className={`fixed inset-0 z-50 flex flex-col items-center justify-center bg-primary transition-opacity duration-500 ${isVisible ? 'opacity-100' : 'opacity-0'
+        }`}
     >
       <div className="flex flex-col items-center gap-4 animate-pop-in">
         {/* Logo */}
-        <div className="w-20 h-20 rounded-2xl bg-white/20 flex items-center justify-center">
-          <span className="text-5xl" role="img" aria-label="cookie">
-            {"🍪"}
-          </span>
-        </div>
-
-        {/* Title */}
-        <div className="text-center">
-          <h1 className="font-display text-2xl text-white mb-1">
-            두쫀쿠가고 버터떡왔다
-          </h1>
-          <p className="text-sm text-white/80">
-            질환 아동 안심 과자 추천 서비스
-          </p>
-        </div>
-
-        {/* Spinner */}
-        <Loader2 className="w-6 h-6 text-white/60 animate-spin mt-4" />
+        <img
+          src="/노랑다람쥐.png"
+          width={100}
+          height={100}
+          alt="스낵몬스터"
+          style={{ imageRendering: 'pixelated' }}
+        />
       </div>
+
+      {/* Title */}
+      <div className="text-center">
+        <h1 className="font-display text-2xl text-white mb-1">
+          스낵몬스터
+        </h1>
+        <p className="text-sm text-white/80">
+          질환 아동 과자 추천 서비스
+        </p>
+      </div>
+
+      {/* Spinner */}
+      <Loader2 className="w-6 h-6 text-white/60 animate-spin mt-4" />
     </div>
   );
 }

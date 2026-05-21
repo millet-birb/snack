@@ -35,9 +35,14 @@ export function HeroSection() {
       <div className="relative px-4 pt-10 pb-8">
         {/* Logo and Title */}
         <div className="flex flex-col items-center gap-2 mb-2 animate-slide-up">
-          <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-primary text-primary-foreground text-2xl shadow-md">
-            <span role="img" aria-label="cookie">{"🍪"}</span>
-          </div>
+        <img
+        src="/다람쥐.png"
+        width={120}
+        height={120}
+        alt="스낵몬스터"
+        style={{ imageRendering: 'pixelated' }}
+        />
+
           <h1 className="font-display text-4xl text-center text-text">
             스낵몬스터
           </h1>
