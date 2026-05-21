@@ -1,9 +1,10 @@
 'use client';
 
-import { ArrowLeft, ChevronDown } from 'lucide-react';
+import { ArrowLeft, ChevronDown, Search } from 'lucide-react';
 import { useFilterStore } from '@/lib/filter-store';
 import { SORT_OPTIONS } from '@/lib/constants';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,13 +17,18 @@ interface ResultsHeaderProps {
 }
 
 export function ResultsHeader({ totalCount }: ResultsHeaderProps) {
-  const { sort, setSort, setCurrentView } = useFilterStore();
+  const { sort, setSort, setCurrentView, query, setQuery } = useFilterStore();
 
   const currentSortLabel =
     SORT_OPTIONS.find((o) => o.value === sort)?.label || '점수순';
 
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+  };
+
   return (
     <header className="sticky top-0 z-20 bg-background/95 backdrop-blur-sm border-b border-border-soft">
+      {/* 상단 바 */}
       <div className="flex items-center justify-between px-4 py-3">
         <button
           onClick={() => setCurrentView('home')}
@@ -58,6 +64,27 @@ export function ResultsHeader({ totalCount }: ResultsHeaderProps) {
           </DropdownMenu>
         </div>
       </div>
+
+      {/* 검색바 */}
+      <form onSubmit={handleSearch} className="px-4 pb-3">
+        <div className="relative flex items-center bg-card rounded-[24px] border border-border-soft focus-within:border-primary transition-all">
+          <Search className="absolute left-4 w-4 h-4 text-text-3" />
+          <Input
+            type="text"
+            placeholder="과자 이름, 브랜드, 원재료 검색"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="pl-10 pr-4 py-3 h-auto border-0 bg-transparent rounded-[24px] text-sm placeholder:text-text-3 focus-visible:ring-0 focus-visible:ring-offset-0"
+          />
+          <Button
+            type="submit"
+            size="sm"
+            className="absolute right-2 rounded-full px-3 h-8 bg-primary hover:bg-primary-dk text-xs"
+          >
+            검색
+          </Button>
+        </div>
+      </form>
     </header>
   );
 }
