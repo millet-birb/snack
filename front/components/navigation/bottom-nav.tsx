@@ -25,22 +25,23 @@ export function BottomNav() {
   };
 
   const navItems = [
-    { id: 'home', label: '홈', icon: <Home className="w-6 h-6" /> },
-    { id: 'search', label: '검색', icon: <Search className="w-6 h-6" /> },
+    { id: 'home',
+      label: '홈',
+      icon: <img src="/product-images/필터링.png" alt="홈" width={70} height={60} style={{ imageRendering: 'pixelated' }} />
+    },
+    { id: 'search',
+      label: '검색',
+      icon: <img src="/product-images/검색.png" alt="검색" width={50} height={40} style={{ imageRendering: 'pixelated' }} />
+    },
     {
       id: 'group',
       label: '단체구매',
-      icon: (
-        <Image
-          src="/지갑.png"
-          width={24}
-          height={24}
-          alt="단체구매"
-          style={{ imageRendering: 'pixelated' }}
-        />
-      ),
+      icon: <img src="/product-images/지갑.png" alt="단체구매" width={22} height={24} style={{ imageRendering: 'pixelated' }} />,
     },
-    { id: 'news', label: '최신 이슈', icon: <FileText className="w-6 h-6" /> },
+    { id: 'news',
+      label: '최신 이슈',
+      icon: <img src="/product-images/최신이슈.png" alt="최신이슈" width={60} height={60} style={{ imageRendering: 'pixelated' }} />,
+    },
   ];
 
   return (
@@ -53,14 +54,17 @@ export function BottomNav() {
               key={item.id}
               onClick={() => handleNavClick(item.id)}
               className={cn(
-                'flex flex-col items-center gap-0.5 py-1 px-4 transition-all',
+                'flex flex-col items-center gap-0.5 py-1 w-16 transition-all',
                 isActive ? 'text-primary' : 'text-text-3'
               )}
             >
-              <span className={cn('transition-transform', isActive && 'scale-110')}>
+              <span className={cn(
+                'flex items-center justify-center w-6 h-6 transition-transform',
+                isActive && 'scale-110'
+              )}>
                 {item.icon}
               </span>
-              <span className={cn('text-[10px] font-medium', isActive && 'font-semibold')}>
+              <span className={cn('text-[10px] font-medium text-center', isActive && 'font-semibold')}>
                 {item.label}
               </span>
             </button>

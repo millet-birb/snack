@@ -38,7 +38,7 @@ export function HeroSection() {
         {/* Logo and Title */}
         <div className="flex flex-col items-center gap-2 mb-2 animate-slide-up">
         <img
-        src="/다람쥐.png"
+        src="/product-images/다람쥐.png"
         width={120}
         height={120}
         alt="스낵몬스터"

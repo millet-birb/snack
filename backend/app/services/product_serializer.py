@@ -7,6 +7,22 @@ def _safe_number(value, default=0):
     return value
 
 
+def _per_serving_number(row: pd.Series, *source_columns: str) -> float:
+    """Return a nutrient amount normalized to the product's serving size."""
+    for column in source_columns:
+        per_serving = row.get(f"{column}_1회")
+        if not pd.isna(per_serving):
+            return round(float(per_serving), 2)
+
+    serving_g = float(_safe_number(row.get("serving_g", 0), 0))
+    for column in source_columns:
+        value = row.get(column)
+        if not pd.isna(value):
+            return round(float(value) * serving_g / 100, 2)
+
+    return 0.0
+
+
 def serialize_product(row: pd.Series) -> dict:
     eval_data = row.get("eval", {}) or {}
 
@@ -28,18 +44,18 @@ def serialize_product(row: pd.Series) -> dict:
         "warnFor": eval_data.get("warn_for", []),
         "warnIngredients": eval_data.get("warn_ingredients", {}),
         "nutrition": {
-            "caloriesKcal": float(_safe_number(row.get("에너지(kcal)", row.get("열량(kcal)", 0)), 0)),
-            "carbsG": float(_safe_number(row.get("탄수화물(g)", 0), 0)),
-            "sugarG": float(_safe_number(row.get("당류(g)", 0), 0)),
-            "proteinG": float(_safe_number(row.get("단백질(g)", 0), 0)),
-            "fatG": float(_safe_number(row.get("지방(g)", 0), 0)),
-            "saturatedFatG": float(_safe_number(row.get("포화지방산(g)", 0), 0)),
-            "transFatG": float(_safe_number(row.get("트랜스지방(g)", row.get("트랜스지방산(g)", 0)), 0)),
-            "cholesterolMg": float(_safe_number(row.get("콜레스테롤(mg)", 0), 0)),
-            "sodiumMg": float(_safe_number(row.get("나트륨(mg)", 0), 0)),
-            "calciumMg": float(_safe_number(row.get("칼슘(mg)", 0), 0)),
-            "ironMg": float(_safe_number(row.get("철(mg)", 0), 0)),
-            "fiberG": float(_safe_number(row.get("식이섬유(g)", 0), 0)),
+            "caloriesKcal": _per_serving_number(row, "에너지(kcal)", "열량(kcal)"),
+            "carbsG": _per_serving_number(row, "탄수화물(g)"),
+            "sugarG": _per_serving_number(row, "당류(g)"),
+            "proteinG": _per_serving_number(row, "단백질(g)"),
+            "fatG": _per_serving_number(row, "지방(g)"),
+            "saturatedFatG": _per_serving_number(row, "포화지방산(g)"),
+            "transFatG": _per_serving_number(row, "트랜스지방산(g)", "트랜스지방(g)"),
+            "cholesterolMg": _per_serving_number(row, "콜레스테롤(mg)"),
+            "sodiumMg": _per_serving_number(row, "나트륨(mg)"),
+            "calciumMg": _per_serving_number(row, "칼슘(mg)"),
+            "ironMg": _per_serving_number(row, "철(mg)"),
+            "fiberG": _per_serving_number(row, "식이섬유(g)"),
         },
         "ingredientsRaw": str(row.get("원재료명", "")),
         "imageUrl": str(row.get("image_url", "")).strip() or None,

@@ -4,7 +4,7 @@ import { ArrowRight } from 'lucide-react';
 import { useFilterStore } from '@/lib/filter-store';
 
 export function CTAButton() {
-  const { query, conditions, tastes, setCurrentView } = useFilterStore();
+  const { query, conditions, tastes, setCurrentView, setResultsPage } = useFilterStore();
 
   const conditionCount = conditions.size;
   const tasteCount = tastes.size;
@@ -14,6 +14,7 @@ export function CTAButton() {
     console.log('선택 조건:', Array.from(conditions));
     console.log('선택 맛:', Array.from(tastes));
     console.log('CTA 클릭 query:', query);
+    setResultsPage(1);
     setCurrentView('results');
   };
 

@@ -2,6 +2,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers.products import router as products_router
+from app.routers.group import router as group_router
+from app.routers.chat import router as chat_router
 
 app = FastAPI(
     title="Snack Safe API",
@@ -17,7 +19,8 @@ app.add_middleware(
 )
 
 app.include_router(products_router, prefix="/api")
-
+app.include_router(group_router)
+app.include_router(chat_router, prefix="/api")
 
 @app.get("/")
 def root():

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFilterStore } from '@/lib/filter-store';
 import type { Product } from '@/lib/types';
 import { ResultsHeader } from '@/components/results/results-header';
@@ -12,21 +12,31 @@ const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000';
 
 export function ResultsScreen() {
-  const { conditions, tastes, budget, query, sort } = useFilterStore();
+  const { conditions, tastes, budget, query, sort, resultsPage: page, setResultsPage: setPage } =
+    useFilterStore();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [page, setPage] = useState(1);
+  const didMountCriteria = useRef(false);
 
   const conditionList = useMemo(() => Array.from(conditions ?? []), [conditions]);
   const tasteList = useMemo(() => Array.from(tastes ?? []), [tastes]);
 
   useEffect(() => {
+    if (!didMountCriteria.current) {
+      didMountCriteria.current = true;
+      return;
+    }
+
     setPage(1);
-  }, [conditionList, tasteList, budget, query, sort]);
+  }, [conditionList, tasteList, budget, query, sort, setPage]);
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' });
+  }, [page]);
 
   useEffect(() => {
     const fetchProducts = async () => {
@@ -100,7 +110,7 @@ export function ResultsScreen() {
               <button
                 type="button"
                 disabled={page <= 1}
-                onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+                onClick={() => setPage(Math.max(1, page - 1))}
                 className="rounded-full border border-border-soft px-4 py-2 text-sm disabled:opacity-40"
               >
                 이전
@@ -113,7 +123,7 @@ export function ResultsScreen() {
               <button
                 type="button"
                 disabled={page >= totalPages}
-                onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+                onClick={() => setPage(Math.min(totalPages, page + 1))}
                 className="rounded-full border border-border-soft px-4 py-2 text-sm disabled:opacity-40"
               >
                 다음

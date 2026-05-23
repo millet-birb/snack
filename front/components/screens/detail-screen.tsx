@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000';
 
-const ALL_CONDITIONS: Condition[] = [
+const ALL_CONDITIONS = [
   '알레르기',
   '아토피',
   '소아천식',
@@ -18,7 +18,9 @@ const ALL_CONDITIONS: Condition[] = [
   '소아비만',
   '소아당뇨',
   '카페인',
-];
+] as const satisfies readonly Condition[];
+
+type DetailCondition = (typeof ALL_CONDITIONS)[number];
 
 export function DetailScreen() {
   const { selectedProduct, setCurrentView } = useFilterStore();
@@ -79,7 +81,7 @@ export function DetailScreen() {
   const warnSet = new Set(product.warnFor ?? []);
   const warnIngredients = product.warnIngredients ?? {};
 
-  const conditionLabelMap: Record<Condition, string> = {
+  const conditionLabelMap: Record<DetailCondition, string> = {
     알레르기: '알레르기',
     아토피: '아토피',
     소아천식: '천식',
@@ -196,6 +198,7 @@ export function DetailScreen() {
             <h2 className="text-sm font-semibold text-text">영양 성분</h2>
             <div className="mt-3 grid grid-cols-3 gap-2">
               {[
+                ['1회 제공량', `${product.servingG} g`],
                 ['칼로리', `${product.nutrition?.caloriesKcal ?? 0} kcal`],
                 ['당류', `${product.nutrition?.sugarG ?? 0} g`],
                 ['지방', `${product.nutrition?.fatG ?? 0} g`],

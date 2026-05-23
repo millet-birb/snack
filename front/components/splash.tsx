@@ -27,7 +27,7 @@ export function Splash({ onComplete }: SplashProps) {
       <div className="flex flex-col items-center gap-4 animate-pop-in">
         {/* Logo */}
         <img
-          src="/노랑다람쥐.png"
+          src="/product-images/노랑다람쥐.png"
           width={100}
           height={100}
           alt="스낵몬스터"

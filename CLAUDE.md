@@ -22,6 +22,9 @@ uv run python -m src.collector.food_collector
 pip install -r requirements.txt
 uvicorn app.main:app --reload   # module path is app.main, not backend.app.main
 
+# Rebuild the product SQLite DB after editing the data CSVs (from backend/)
+python -m app.scripts.build_product_db
+
 # Frontend (from front/)
 pnpm install
 pnpm dev      # next dev
@@ -36,11 +39,23 @@ There is no test suite in any of the three subprojects.
 ### Backend request pipeline
 All product reads funnel through one cached DataFrame:
 
-`product_repository.get_base_df()` (`@lru_cache(maxsize=1)`) calls `filter_engine.load_data()` on `backend/app/data/최종데이터 전처리_final.csv`, then left-joins `product_images_final.csv` on `(품목명, 제조사명)`, deduplicates by `stable_id`, and precomputes `taste_tags`. **`get_base_df()` is the canonical source — never re-read the CSVs directly.** The cache is intentionally hot for the life of the process; restart `uvicorn` after editing the CSVs.
+`product_repository.get_base_df()` (`@lru_cache(maxsize=1)`) loads the product DataFrame, **preferring the prebuilt SQLite DB**: if `backend/app/data/snack_products.sqlite3` exists it reads `SELECT * FROM products`; otherwise it falls back to the CSV path — `filter_engine.load_data()` on `최종데이터 전처리_final.csv` left-joined with `product_images_final.csv` on `(품목명, 제조사명)`. Either way it then dedupes by `stable_id` and ensures `taste_tags` exists. **`get_base_df()` is the canonical source — never re-read the CSVs/DB directly.** The cache is intentionally hot for the life of the process; restart `uvicorn` after changing the data. **Editing the CSVs alone has no effect while the SQLite DB exists** — rerun `build_product_db` (see Commands) to regenerate it.
+
+The DB is built by `app/scripts/build_product_db.py`: it runs `load_data()` on the source CSV, merges `product_images_final.csv` (image URLs) and `가격전처리.csv` (an *inner* join that overwrites `식품중량`/`중량(g)`/`갯수(개)`/`price`), dedupes by `stable_id`, and writes the `products` table with indexes on `stable_id` and `(품목명, 제조사명)`.
 
 `product_service.get_products()` then chains, in order: `normalize_conditions` → `filter_safe_products` → `compute_nutrition_score` → `apply_query_filter` → `apply_taste_filter` → `apply_budget_filter` → `apply_sort` → paginate → `serialize_product`. `get_product_detail()` always re-evaluates against **all 8 conditions** regardless of the request (the list endpoint only evaluates the requested ones).
 
 `load_data()` also synthesizes derived columns the rest of the code depends on: `serving_g`, `<nutrient>_1회` (per-serving scaled), `price_per_unit` (`price / 갯수(개)`), and `stable_id` (a string of the post-load index — the product ID exposed in the API). Don't bypass `load_data()` or these columns will be missing.
+
+### Group purchase feature (separate from the single-product list)
+`routers/group.py` (mounted at `/api/group`, **not** through the `/api` include like `products_router`) and `services/group_service.py` implement bulk-buy recommendations for a mixed group of children. The frontend half is `front/components/screens/group-purchase-screen.tsx`, reached via the `'group'` view.
+
+Three modes, all keyed off a `groupInfo` of `{ totalPeople, diseaseGroups: {<condition>: count} }`:
+- **A (`/mode-a`)** — one product list everyone can eat (passes *all* present conditions simultaneously). Relaxes the taste filter if it would empty the result.
+- **B (`/mode-b`)** — a separate ranked list per disease group, plus a "질환없음" group for the remainder.
+- **C (`/mode-c`)** — auto-fills a cart against `budget`. `sameSnack` toggles one snack for everyone vs. per-group snacks; `pinnedIds` survive re-rolls; picks randomly from the top-20 by `nutrition_score`.
+
+`/cart` re-prices a frontend-assembled cart and re-checks warnings. Group code calls `filter_engine` primitives (`filter_safe_products`, `evaluate_product`, `compute_nutrition_score`, `tag_taste`) **directly** — it does *not* go through `product_service` or `normalize_conditions`, so it expects backend condition keys (the `CONDITION_RULE_MAP` vocabulary) already.
 
 ### Condition vocabulary mismatch (frontend ↔ backend)
 The frontend uses `소아천식` and `카페인`; the backend's `filter_engine.CONDITION_RULE_MAP` keys them as `천식` and `카페인주의`. `product_filters.normalize_conditions()` is the single translation layer — anything that constructs condition lists for `filter_engine` must go through it. If you add a new condition, update **both** `front/lib/constants.ts` (`CONDITIONS`, `RISK_KEYWORDS`) **and** `CONDITION_MAP` + `CONDITION_RULE_MAP` + `RISK_KEYWORDS` on the backend.
@@ -52,14 +67,27 @@ The frontend uses `소아천식` and `카페인`; the backend's `filter_engine.C
 - `tag_taste()` is keyword-based with two dictionaries: `TASTE_KEYWORDS` (against ingredients) and `NAME_TASTE_KEYWORDS` (against product name). Both must be updated when adding a taste.
 
 ### Frontend has no real routes — navigation is Zustand state
-`front/app/page.tsx` renders one component (`SnackApp`) that switches between `HomeScreen` / `ResultsScreen` / `DetailScreen` based on `useFilterStore().currentView`. The only real Next.js routes are `/` and the stub API routes under `front/app/api/*`.
+`front/app/page.tsx` renders one component (`SnackApp`) that switches between `HomeScreen` / `ResultsScreen` / `DetailScreen` / `GroupPurchaseScreen` based on `useFilterStore().currentView` (`'home' | 'results' | 'detail' | 'group'`). `BottomNav` drives view changes. The only real Next.js routes are `/` and the stub API routes under `front/app/api/*`.
 
 **The stub API routes (`front/app/api/products`, `/stats`) use `MOCK_PRODUCTS` from `lib/mock-data.ts` and are not the production data path.** Production requests go directly from `ResultsScreen` / `DetailScreen` to `NEXT_PUBLIC_BACKEND_URL` (default `http://127.0.0.1:8000`). Don't add features to `front/app/api/*` — change the FastAPI backend instead.
 
 The filter store (`lib/filter-store.ts`) holds `Set<Condition>` / `Set<TasteTag>`, so anything reading them in a React effect must convert to arrays via `useMemo` (see `ResultsScreen`) — `Set` identity changes break dependency arrays.
 
+### Chatbot endpoint (separate from product list / group features)
+`routers/chat.py` (mounted at `/api/chat`) wraps the OpenAI Chat Completions API (`gpt-4o-mini`) with a single function tool `search_snacks` that calls into `product_service.get_products()`. The router runs a bounded tool-use loop (max 4 turns), but **only the first turn sends the `tools=` schema** — once the model has called the tool, follow-up turns are free of the ~27-entry condition enum to save input tokens.
+
+Token-saving knobs to be aware of when editing `chat.py`:
+- `max_tokens=500` caps each OpenAI response.
+- `MAX_HISTORY = 6` — only the last 6 client-supplied history messages are forwarded on each request.
+- The tool-call result is trimmed to 5 minimal fields per product (`name`, `brand`, `price`, `servingG`, `caloriesPerServingKcal`) — don't add fields back without a clear LLM-side use.
+- An in-process LRU response cache (`_RESPONSE_CACHE`, max 128 entries) keyed by the normalized user `message` — identical questions skip the OpenAI call entirely. **Volatile** (cleared on `uvicorn` restart) and **per-worker** (not shared across `--workers N`). History is *not* part of the cache key, so a cached reply will be returned even if the prior turns differ — fine for the typical "추천해줘" style prompts, surprising for follow-up questions like "왜?".
+
+Condition vocabulary: `chat.py`'s `CONDITION_OPTIONS` uses the **frontend** keys (e.g. `소아천식`, `카페인`), and `run_search_snacks()` passes them through `get_products()` so the standard `normalize_conditions` translation runs (unlike `group_service.py`, which bypasses normalization).
+
+`backend/.env` must contain `OPENAI_API_KEY` — the router 500s if missing.
+
 ### Backend CORS and data files
-`backend/app/main.py` sets `allow_origins=["*"]` with a "개발 단계에서만" comment — tighten before deploying. The two CSVs under `backend/app/data/` are the product database; they are not regenerated by the collector (the collector only fetches raw API data into `data/<category>_raw.json` at the repo root) and there is no documented preprocessing script in the repo.
+`backend/app/main.py` sets `allow_origins=["*"]` with a "개발 단계에서만" comment — tighten before deploying. The product database lives in `backend/app/data/` as several CSVs plus the generated `snack_products.sqlite3`. These are **not** regenerated by the collector (the collector only fetches raw API data into `data/<category>_raw.json` at the repo root); the source CSVs are hand-prepared, and `app/scripts/build_product_db.py` is the only script that consumes them (merging into the SQLite DB — see the request-pipeline section). There is no script that produces the source CSVs themselves.
 
 ### TypeScript build errors are ignored
 `front/next.config.mjs` sets `typescript.ignoreBuildErrors: true` and `images.unoptimized: true`. `pnpm build` will succeed even with type errors — `pnpm lint` is the only check that runs.

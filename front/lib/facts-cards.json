@@ -3,7 +3,7 @@
     "card_id": 1,
     "emoji": "🌿",
     "disease": "아토피",
-    "headline": "Food Hypersensitivity in Patients with Childhood Atopic Dermatitis in Korea",
+    "headline": "한국 소아 아토피 피부염 환자의 식품 과민증",
     "content": "국내 소아 아토피 피부염 환자의 식품 과민증을 조사한 결과, 계란과 우유가 가장 흔한 식품 과민증 유발 식품으로 보고됨.",
     "source": "김혜원 외 (Annals of Dermatology, 2013)"
   },
@@ -193,14 +193,6 @@
   },
   {
     "card_id": 25,
-    "emoji": "🥛",
-    "disease": "유당불내증",
-    "headline": "식품 과민증",
-    "content": "한국인을 비롯한 동양인 중에는 우유나 유제품 섭취 시 설사를 하는 경우가 많은데, 이는 유당을 분해하는 효소 결핍 때문임.",
-    "source": "편집부 (마케팅, 1991)"
-  },
-  {
-    "card_id": 26,
     "emoji": "⚠️",
     "disease": "아나필락시스",
     "headline": "응급실 내원 소아청소년에서 심한 식품알레르기의 발생 빈도와 임상 특징",
@@ -208,7 +200,7 @@
     "source": "이수영 외 (천식 및 알레르기, 2012)"
   },
   {
-    "card_id": 27,
+    "card_id": 26,
     "emoji": "⚠️",
     "disease": "아나필락시스",
     "headline": "식품알레르기 자연경과에서 구운 달걀과 우유 섭취의 잠재적 역할",
@@ -216,7 +208,7 @@
     "source": "정경욱 (Allergy Asthma & Respiratory Diseases, 2024)"
   },
   {
-    "card_id": 28,
+    "card_id": 27,
     "emoji": "⚠️",
     "disease": "아나필락시스",
     "headline": "한국 소아의 식품 의존성 운동유발 아나필락시스",
@@ -224,7 +216,7 @@
     "source": "양송이 외 (Allergy Asthma & Respiratory Diseases, 2015)"
   },
   {
-    "card_id": 29,
+    "card_id": 28,
     "emoji": "⚠️",
     "disease": "아나필락시스",
     "headline": "땅콩 알레르기",
@@ -232,7 +224,7 @@
     "source": "김정희 (Allergy Asthma & Respiratory Diseases, 2007)"
   },
   {
-    "card_id": 30,
+    "card_id": 29,
     "emoji": "⚠️",
     "disease": "아나필락시스",
     "headline": "조리법이 땅콩의 알레르기 항원성에 미치는 영향",
@@ -240,7 +232,7 @@
     "source": "안연화 외 (Allergy Asthma & Respiratory Diseases, 2009)"
   },
   {
-    "card_id": 31,
+    "card_id": 30,
     "emoji": "⚠️",
     "disease": "아나필락시스",
     "headline": "휴대용 에피네프린 처방률을 포함한 소아 아나필락시스의 연구",
@@ -248,7 +240,7 @@
     "source": "강준석 외 (Allergy Asthma & Respiratory Diseases, 2017)"
   },
   {
-    "card_id": 32,
+    "card_id": 31,
     "emoji": "☕",
     "disease": "카페인",
     "headline": "초등학교 고학년의 주의력결핍·과잉행동장애와 식습관 및 카페인 섭취와의 관련성",
@@ -256,7 +248,7 @@
     "source": "장꽃빈, 김혜영 (한국영양학회지, 2012)"
   },
   {
-    "card_id": 33,
+    "card_id": 32,
     "emoji": "☕",
     "disease": "카페인",
     "headline": "어린이 기호식품 중 카페인 함량에 대한 조사",
@@ -264,7 +256,7 @@
     "source": "이에나 외 (한국식품위생안전성학회지, 2007)"
   },
   {
-    "card_id": 34,
+    "card_id": 33,
     "emoji": "☕",
     "disease": "카페인",
     "headline": "아동의 카페인 섭취실태에 관한 연구",
@@ -272,7 +264,7 @@
     "source": "장영은, 정혜경 (한국영양학회지, 2010)"
   },
   {
-    "card_id": 35,
+    "card_id": 34,
     "emoji": "☕",
     "disease": "카페인",
     "headline": "어린이기호식품의 상품시험 조사보고서: 카페인 중심으로",
@@ -280,7 +272,7 @@
     "source": "편집부 (시험결과보고서, 2009)"
   },
   {
-    "card_id": 36,
+    "card_id": 35,
     "emoji": "☕",
     "disease": "카페인",
     "headline": "어린이들의 음료를 통한 카페인 섭취량 실태조사 및 영양교육에 따른 효과 평가",
@@ -288,7 +280,7 @@
     "source": "김성단 외 (한국식품영양과학회지, 2009)"
   },
   {
-    "card_id": 37,
+    "card_id": 36,
     "emoji": "💡",
     "disease": "알고계셨나요",
     "headline": "같은 공장, 다른 위험?",
@@ -296,7 +288,7 @@
     "source": "함준혁 외 (식품법과 정책, 2024) / 김소현 (아주대학교 대학원, 2021)"
   },
   {
-    "card_id": 38,
+    "card_id": 37,
     "emoji": "🥚",
     "disease": "알고계셨나요",
     "headline": "아토피 아이, 계란·우유가 가장 위험해요",
@@ -304,7 +296,7 @@
     "source": "김혜원 외 (Annals of Dermatology, 2013) / 이석화 외 (대한지역사회영양학회지, 2011)"
   },
   {
-    "card_id": 39,
+    "card_id": 38,
     "emoji": "🍬",
     "disease": "알고계셨나요",
     "headline": "과자류, 당류·나트륨이 생각보다 높아요",
@@ -312,7 +304,7 @@
     "source": "윤채영, 김은주 (동아시아식생활학회지, 2023)"
   },
   {
-    "card_id": 40,
+    "card_id": 39,
     "emoji": "☕",
     "disease": "알고계셨나요",
     "headline": "어린이 카페인, 생각보다 쉽게 넘어요",
@@ -320,7 +312,7 @@
     "source": "편집부 (시험결과보고서, 2009)"
   },
   {
-    "card_id": 41,
+    "card_id": 40,
     "emoji": "🚨",
     "disease": "알고계셨나요",
     "headline": "소아 아나필락시스, 원인의 76%는 식품",
@@ -328,7 +320,7 @@
     "source": "강준석 외 (Allergy Asthma & Respiratory Diseases, 2017)"
   },
   {
-    "card_id": 42,
+    "card_id": 41,
     "emoji": "🌾",
     "disease": "알고계셨나요",
     "headline": "천식 아이에게 아황산염이 위험한 이유",
@@ -336,7 +328,7 @@
     "source": "오재원 (Allergy Asthma & Respiratory Diseases, 2010) / 정은정 외 (한국식품위생안전성학회지, 2020)"
   },
   {
-    "card_id": 43,
+    "card_id": 42,
     "emoji": "🥛",
     "disease": "알고계셨나요",
     "headline": "유당불내증, 무조건 유제품을 끊을 필요는 없어요",
@@ -344,7 +336,7 @@
     "source": "윤성식 (Journal of Milk Science and Biotechnology, 2009)"
   },
   {
-    "card_id": 44,
+    "card_id": 43,
     "emoji": "📋",
     "disease": "알고계셨나요",
     "headline": "알레르기 표시 의무 식품, 19가지를 확인하세요",
