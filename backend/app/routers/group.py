@@ -25,12 +25,14 @@ class ModeARequest(BaseModel):
     groupInfo: GroupInfo
     tastes: list[str] = []
     budget: int = Field(..., ge=0)
+    allergyConditions: list[str] = Field(default_factory=list)
 
 
 class ModeBRequest(BaseModel):
     groupInfo: GroupInfo
     tastes: list[str] = []
     budget: int = Field(..., ge=0)
+    allergyConditions: list[str] = Field(default_factory=list)
 
 
 class ModeCRequest(BaseModel):
@@ -39,7 +41,10 @@ class ModeCRequest(BaseModel):
     budget: int = Field(..., ge=0)
     perPerson: int = Field(default=1, ge=1)
     pinnedIds: list[str] = Field(default_factory=list)
-    sameSnack: bool = True  # 같은 걸 먹을래요(True) / 다른 걸 먹을래요(False)
+    pinnedGroups: list[str] = Field(default_factory=list)
+    pinnedGroupCounts: dict[str, int] = Field(default_factory=dict)
+    allergyConditions: list[str] = Field(default_factory=list)
+    sameSnack: bool = True
 
 
 class CartItem(BaseModel):
@@ -60,6 +65,7 @@ def group_mode_a(req: ModeARequest):
         group_info=req.groupInfo.model_dump(),
         tastes=req.tastes,
         budget=req.budget,
+        allergy_conditions=req.allergyConditions,
     )
 
 
@@ -69,6 +75,7 @@ def group_mode_b(req: ModeBRequest):
         group_info=req.groupInfo.model_dump(),
         tastes=req.tastes,
         budget=req.budget,
+        allergy_conditions=req.allergyConditions,
     )
 
 
@@ -80,6 +87,9 @@ def group_mode_c(req: ModeCRequest):
         budget=req.budget,
         per_person=req.perPerson,
         pinned_ids=req.pinnedIds,
+        pinned_groups=req.pinnedGroups,
+        pinned_group_counts=req.pinnedGroupCounts,
+        allergy_conditions=req.allergyConditions,
         same_snack=req.sameSnack,
     )
 
