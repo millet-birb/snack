@@ -290,6 +290,7 @@ export function GroupPurchaseScreen() {
             onChange={(e) => setTotalPeople(Number(e.target.value))}
             placeholder="예) 20" className="border rounded-lg px-3 py-2 w-full text-sm"
           />
+          <p className="text-xs text-gray-400 mt-1">💡 최대 1,000명까지 입력 가능해요</p>
         </div>
         <div className="mb-4">
           <label className="text-sm text-gray-600 mb-2 block">
@@ -390,6 +391,7 @@ export function GroupPurchaseScreen() {
             onChange={(e) => setBudget(Number(e.target.value))}
             placeholder="예) 50000" className="border rounded-lg px-3 py-2 w-full text-sm"
           />
+          <p className="text-xs text-gray-400 mt-1">💡 최대 1억원까지 입력 가능해요</p>
         </div>
       </section>
 
@@ -445,13 +447,6 @@ export function GroupPurchaseScreen() {
                 </button>
               </div>
               <div className="flex items-center gap-3">
-                <label className="text-sm text-gray-600">1인당 과자 수</label>
-                <input
-                  type="number" min={1} value={perPerson}
-                  onChange={(e) => setPerPerson(Number(e.target.value))}
-                  className="border rounded-lg px-2 py-1 w-16 text-sm"
-                />
-                <span className="text-sm text-gray-400">개</span>
                 <button
                   onClick={() => callModeC()}
                   className="ml-auto bg-[#D9472E] text-white rounded-lg px-3 py-1 text-sm"
@@ -541,6 +536,10 @@ export function GroupPurchaseScreen() {
           <div className="bg-white rounded-2xl px-5 pt-4 pb-2 shadow-sm">
             <h2 className="font-bold text-base mb-1">🤖 자동 추천 장바구니</h2>
             <p className="text-xs text-gray-400 mb-3">📌 누르면 다시 추천해도 고정돼요!</p>
+            {/* 중복 배정 경고만 표시 */}
+            {warnings.filter((w) => w.type === 'duplicate_snack').map((w, idx) => (
+              <p key={idx} className="text-xs text-orange-500 mb-2">⚠️ {w.message}</p>
+            ))}
           </div>
           {/* 그룹별로 묶어서 표시 */}
           {Array.from(new Set(cart.map((item) => item.groupLabel))).map((label) => {
@@ -593,17 +592,6 @@ export function GroupPurchaseScreen() {
               </div>
             ))}
           </div>
-        </section>
-      )}
-
-      {/* 경고 */}
-      {warnings.length > 0 && (
-        <section className="bg-orange-50 rounded-2xl p-4 mb-4">
-          {warnings.map((w, idx) => (
-            <p key={idx} className="text-xs text-orange-600 mb-1">
-              ⚠️ {w.message || `${w.productName}이 일부 아동에게 주의가 필요해요 (${w.warnFor?.join(', ')})`}
-            </p>
-          ))}
         </section>
       )}
 

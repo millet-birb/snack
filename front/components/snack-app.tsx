@@ -45,7 +45,7 @@ export function SnackApp() {
 
       <BottomNav />
 
-      <ChatWidget />
+      {!showSplash && <ChatWidget />}
     </div>
   );
 }
