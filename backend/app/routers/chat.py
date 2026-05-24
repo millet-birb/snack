@@ -6,14 +6,16 @@
 """
 
 import json
+import logging
 import os
 from collections import OrderedDict
 from pathlib import Path
+from typing import Literal
 
 from dotenv import load_dotenv
 from fastapi import APIRouter, HTTPException
 from openai import OpenAI
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.services.product_service import get_products
 
@@ -23,6 +25,8 @@ ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
 load_dotenv(ENV_PATH)
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+
+logger = logging.getLogger(__name__)
 
 # gpt-4o-mini: 저렴하고 빠른 모델. 개발/학습 단계에 적합하다.
 MODEL = "gpt-4o-mini"
@@ -153,14 +157,18 @@ def _cache_set(key: str, value: str) -> None:
 
 
 # ---- 요청/응답 형식 정의 ----------------------------------------------------
+# role 은 반드시 "user" 또는 "assistant" 만 허용한다.
+# "system"/"tool" 을 허용하면 클라이언트가 시스템 프롬프트를 덮어쓰거나
+# 가짜 도구 결과를 주입해 안전 가이드(알레르기 규칙 등)를 무력화할 수 있다.
 class ChatMessage(BaseModel):
-    role: str       # "user" (사용자) 또는 "assistant" (챗봇)
-    content: str    # 메시지 내용
+    role: Literal["user", "assistant"]
+    content: str = Field(..., min_length=1, max_length=2000)
 
 
 class ChatRequest(BaseModel):
-    message: str                       # 이번에 사용자가 보낸 메시지
-    history: list[ChatMessage] = []    # 이전 대화 기록 (없으면 빈 목록)
+    # 길이 상한은 OpenAI 토큰 비용 폭주 / DoS 방지용.
+    message: str = Field(..., min_length=1, max_length=2000)
+    history: list[ChatMessage] = Field(default_factory=list, max_length=20)
 
 
 class ChatResponse(BaseModel):
@@ -238,9 +246,12 @@ def run_search_snacks(args: dict) -> dict:
 @router.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest):
     if not OPENAI_API_KEY:
+        # 서버 로그에는 자세히, 클라이언트에는 일반 메시지만.
+        # 내부 파일 경로(.env 위치)를 외부에 알려주면 공격 표면이 넓어진다.
+        logger.error("OPENAI_API_KEY is not set (check backend/.env)")
         raise HTTPException(
-            status_code=500,
-            detail="OPENAI_API_KEY가 설정되지 않았습니다. backend/.env 파일을 확인하세요.",
+            status_code=503,
+            detail="챗봇 서비스를 일시적으로 사용할 수 없어요. 잠시 후 다시 시도해주세요.",
         )
 
     # 동일 질문이면 OpenAI 호출 없이 캐시된 응답을 즉시 돌려준다.
@@ -294,7 +305,13 @@ def chat(req: ChatRequest):
                     "content": json.dumps(result, ensure_ascii=False),
                 })
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"OpenAI 호출 실패: {e}")
+        # 원본 예외 메시지에는 OpenAI 키 일부·조직 ID·내부 경로가 포함될 수 있다.
+        # 자세한 내용은 서버 로그에만 남기고, 클라이언트에는 일반 메시지만 돌려준다.
+        logger.exception("OpenAI call failed: %s", e)
+        raise HTTPException(
+            status_code=502,
+            detail="챗봇 응답을 받지 못했어요. 잠시 후 다시 시도해주세요.",
+        )
 
     # 4번을 다 쓰도록 답이 안 나온 경우
     return ChatResponse(

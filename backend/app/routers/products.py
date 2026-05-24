@@ -6,6 +6,14 @@ from app.services.product_service import (
     get_stats,
 )
 
+# 모든 상한선은 DoS 방지 목적.
+# 클라이언트가 per_page=99999999 같은 값으로 메모리/CPU 폭주를 일으키지 못하게 한다.
+MAX_PAGE = 10_000
+MAX_PER_PAGE = 100
+MAX_BUDGET = 100_000_000          # 1억 원
+MAX_QUERY_LEN = 200
+MAX_FILTER_LEN = 500              # conditions/tastes 콤마 구분 문자열 전체 길이
+
 router = APIRouter()
 
 
@@ -16,13 +24,13 @@ def stats():
 
 @router.get("/products")
 def products(
-    conditions: str = Query(default=""),
-    tastes: str = Query(default=""),
-    budget: int = Query(default=20000),
-    query: str = Query(default=""),
-    sort: str = Query(default="score_desc"),
-    page: int = Query(default=1),
-    per_page: int = Query(default=20),
+    conditions: str = Query(default="", max_length=MAX_FILTER_LEN),
+    tastes: str = Query(default="", max_length=MAX_FILTER_LEN),
+    budget: int = Query(default=20000, ge=0, le=MAX_BUDGET),
+    query: str = Query(default="", max_length=MAX_QUERY_LEN),
+    sort: str = Query(default="score_desc", max_length=50),
+    page: int = Query(default=1, ge=1, le=MAX_PAGE),
+    per_page: int = Query(default=20, ge=1, le=MAX_PER_PAGE),
 ):
     condition_list = [c.strip() for c in conditions.split(",") if c.strip()]
     taste_list = [t.strip() for t in tastes.split(",") if t.strip()]
@@ -40,6 +48,10 @@ def products(
 
 @router.get("/products/{product_id}")
 def product_detail(product_id: str):
+    # 경로 파라미터에도 길이 제한 — 비정상적으로 긴 ID 가 흘러들지 못하게.
+    if len(product_id) > 200:
+        raise HTTPException(status_code=400, detail="invalid product id")
+
     product = get_product_detail(product_id)
     if not product:
         raise HTTPException(

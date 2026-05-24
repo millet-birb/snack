@@ -122,7 +122,6 @@ export const RISK_KEYWORDS: Record<Condition, string[]> = {
 export const SORT_OPTIONS = [
   { value: 'price_asc' as const, label: '가격 낮은순' },
   { value: 'price_desc' as const, label: '가격 높은순' },
-  { value: 'score_desc' as const, label: '추천순' },
 ];
 
 // Budget range

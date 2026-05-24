@@ -27,15 +27,23 @@ def apply_query_filter(df: pd.DataFrame, query: str) -> pd.DataFrame:
     if not query:
         return df
 
-    q = str(query).strip().lower()
-    if not q:
+    raw = str(query).strip().lower()
+    if not raw:
         return df
 
+    compact_query = "".join(raw.split())
+    tokens = raw.split()
+
     def _match(row) -> bool:
-        name = str(row.get("품목명", "")).strip().lower()
-        brand = str(row.get("제조사명", "")).strip().lower()
-        ingredients = str(row.get("원재료명", "")).strip().lower()
-        return q in name or q in brand or q in ingredients
+        name = str(row.get("품목명", "")).lower()
+        brand = str(row.get("제조사명", "")).lower()
+        ingredients = str(row.get("원재료명", "")).lower()
+        blob = f"{name} {brand} {ingredients}"
+
+        if compact_query in "".join(blob.split()):
+            return True
+
+        return all(tok in blob for tok in tokens)
 
     mask = df.apply(_match, axis=1)
     return df[mask].copy()

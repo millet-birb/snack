@@ -34,6 +34,8 @@ pnpm lint     # eslint .
 
 There is no test suite in any of the three subprojects.
 
+`backend/requirements.txt` pins each dependency to a major-version range (e.g. `openai>=1.40,<2.0`) — when adding a new dep, pin it the same way to avoid surprise breaks on rebuild.
+
 ## Architecture notes that span multiple files
 
 ### Backend request pipeline
@@ -69,7 +71,7 @@ The frontend uses `소아천식` and `카페인`; the backend's `filter_engine.C
 ### Frontend has no real routes — navigation is Zustand state
 `front/app/page.tsx` renders one component (`SnackApp`) that switches between `HomeScreen` / `ResultsScreen` / `DetailScreen` / `GroupPurchaseScreen` based on `useFilterStore().currentView` (`'home' | 'results' | 'detail' | 'group'`). `BottomNav` drives view changes. The only real Next.js routes are `/` and the stub API routes under `front/app/api/*`.
 
-**The stub API routes (`front/app/api/products`, `/stats`) use `MOCK_PRODUCTS` from `lib/mock-data.ts` and are not the production data path.** Production requests go directly from `ResultsScreen` / `DetailScreen` to `NEXT_PUBLIC_BACKEND_URL` (default `http://127.0.0.1:8000`). Don't add features to `front/app/api/*` — change the FastAPI backend instead.
+**The stub API routes (`front/app/api/products`, `/stats`) use `MOCK_PRODUCTS` from `lib/mock-data.ts` and are not the production data path.** Production requests go directly to the FastAPI backend via the single env var **`NEXT_PUBLIC_BACKEND_URL`** (default `http://127.0.0.1:8000`) from: `ResultsScreen`, `DetailScreen`, `GroupPurchaseScreen`, `ChatWidget`, and the `use-stats` hook. Don't introduce a second env-var name (an earlier `NEXT_PUBLIC_API_BASE_URL` divergence in `GroupPurchaseScreen` silently broke prod) — and don't add features to `front/app/api/*`; change the FastAPI backend instead.
 
 The filter store (`lib/filter-store.ts`) holds `Set<Condition>` / `Set<TasteTag>`, so anything reading them in a React effect must convert to arrays via `useMemo` (see `ResultsScreen`) — `Set` identity changes break dependency arrays.
 
@@ -91,6 +93,15 @@ Condition vocabulary: `chat.py`'s `CONDITION_OPTIONS` uses the **frontend** keys
 
 ### TypeScript build errors are ignored
 `front/next.config.mjs` sets `typescript.ignoreBuildErrors: true` and `images.unoptimized: true`. `pnpm build` will succeed even with type errors — `pnpm lint` is the only check that runs.
+
+## Deployment
+
+Target hosting is **Vercel** (frontend) + **Render** (backend, web service).
+
+- **Backend**: `backend/Procfile` declares `web: uvicorn app.main:app --host 0.0.0.0 --port $PORT` — Render auto-detects it when Root Directory is `backend` and the dashboard Start Command is left blank. `--host 0.0.0.0` and `$PORT` are both mandatory on Render; do not edit these out. `OPENAI_API_KEY` must be set in the Render dashboard (the `backend/.env` file is dev-only and gitignored).
+- **Frontend**: set `NEXT_PUBLIC_BACKEND_URL=https://<render-app>.onrender.com` in the Vercel dashboard. `NEXT_PUBLIC_*` is inlined at build time — env-var changes require a redeploy.
+- **CORS**: `backend/app/main.py` still uses `allow_origins=["*"]` with a "개발 단계에서만" comment. Tighten to the Vercel origin before going live — the chat endpoint has no auth or rate limiting and `*` lets any site burn the OpenAI key.
+- The SQLite DB (`backend/app/data/snack_products.sqlite3`) is committed and read-only at runtime. **Never run `build_product_db.py` on Render** — its filesystem is ephemeral and the rebuild would vanish on restart.
 
 ## Collector specifics (see `src/collector/README.md` for full detail)
 
