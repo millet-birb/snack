@@ -12,6 +12,7 @@ from app.services.filter_engine import (
     filter_safe_products,
     compute_nutrition_score,
     tag_taste,
+    match_tastes,
     CONDITION_RULE_MAP,
 )
 from app.services.product_repository import get_base_df
@@ -45,10 +46,10 @@ def _filter_by_conditions(df: pd.DataFrame, conditions: list[str]) -> pd.DataFra
 
 
 def _filter_by_tastes(df: pd.DataFrame, tastes: list[str]) -> pd.DataFrame:
-    """맛 조건 필터링"""
+    """맛 조건 필터링 — 같은 카테고리는 OR, 다른 카테고리는 AND (match_tastes 참조)"""
     if not tastes:
         return df
-    return df[df["taste_tags"].apply(lambda tags: any(t in tags for t in tastes))].copy()
+    return df[df["taste_tags"].apply(lambda tags: match_tastes(tags, tastes))].copy()
 
 
 def _serialize_cart_item(row, quantity: int, group_label: str) -> dict:

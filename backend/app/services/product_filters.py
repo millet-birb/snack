@@ -1,5 +1,7 @@
 import pandas as pd
 
+from app.services.filter_engine import match_tastes
+
 
 CONDITION_MAP = {
     "알레르기": "알레르기",
@@ -42,13 +44,7 @@ def apply_query_filter(df: pd.DataFrame, query: str) -> pd.DataFrame:
 def apply_taste_filter(df: pd.DataFrame, tastes: list[str]) -> pd.DataFrame:
     if not tastes:
         return df
-
-    def _has_taste(tags):
-        if not isinstance(tags, list):
-            return False
-        return all(taste in tags for taste in tastes)
-
-    return df[df["taste_tags"].apply(_has_taste)].copy()
+    return df[df["taste_tags"].apply(lambda tags: match_tastes(tags, tastes))].copy()
 
 
 def apply_budget_filter(df: pd.DataFrame, budget: int) -> pd.DataFrame:

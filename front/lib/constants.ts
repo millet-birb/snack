@@ -127,6 +127,7 @@ export const SORT_OPTIONS = [
 
 // Budget range
 export const BUDGET_MIN = 500;
-export const BUDGET_MAX = 20000;
-export const BUDGET_STEP = 500;
+export const BUDGET_MAX = 50000;
+export const BUDGET_STEP = 1000;
+export const BUDGET_FINE_STEP = 100;
 export const BUDGET_DEFAULT = 5000;

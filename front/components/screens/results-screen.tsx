@@ -11,6 +11,22 @@ import { EmptyState } from '@/components/results/empty-state';
 const BACKEND_URL =
   process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000';
 
+function getPageItems(
+  current: number,
+  total: number,
+): (number | 'ellipsis-left' | 'ellipsis-right')[] {
+  if (total <= 7) {
+    return Array.from({ length: total }, (_, i) => i + 1);
+  }
+  if (current <= 4) {
+    return [1, 2, 3, 4, 5, 'ellipsis-right', total];
+  }
+  if (current >= total - 3) {
+    return [1, 'ellipsis-left', total - 4, total - 3, total - 2, total - 1, total];
+  }
+  return [1, 'ellipsis-left', current - 1, current, current + 1, 'ellipsis-right', total];
+}
+
 export function ResultsScreen() {
   const { conditions, tastes, budget, query, sort, resultsPage: page, setResultsPage: setPage } =
     useFilterStore();
@@ -106,7 +122,7 @@ export function ResultsScreen() {
           </div>
 
           {totalPages > 1 && (
-            <div className="flex items-center justify-center gap-3 px-4 pb-8 pt-2">
+            <div className="flex flex-wrap items-center justify-center gap-1.5 px-4 pb-8 pt-2">
               <button
                 type="button"
                 disabled={page <= 1}
@@ -116,9 +132,34 @@ export function ResultsScreen() {
                 이전
               </button>
 
-              <span className="text-sm text-text-2">
-                {page} / {totalPages}
-              </span>
+              {getPageItems(page, totalPages).map((item, idx) => {
+                if (item === 'ellipsis-left' || item === 'ellipsis-right') {
+                  return (
+                    <span
+                      key={`${item}-${idx}`}
+                      className="px-1.5 text-sm text-text-3 select-none"
+                    >
+                      …
+                    </span>
+                  );
+                }
+                const isCurrent = item === page;
+                return (
+                  <button
+                    key={item}
+                    type="button"
+                    onClick={() => setPage(item)}
+                    aria-current={isCurrent ? 'page' : undefined}
+                    className={
+                      isCurrent
+                        ? 'rounded-full bg-primary text-primary-foreground min-w-9 h-9 px-3 text-sm font-medium'
+                        : 'rounded-full border border-border-soft min-w-9 h-9 px-3 text-sm hover:bg-accent'
+                    }
+                  >
+                    {item}
+                  </button>
+                );
+              })}
 
               <button
                 type="button"
