@@ -81,28 +81,48 @@ export function ChatWidget() {
     <>
       {/* 1) 닫혀 있을 때 보이는 곰돌선생 아이콘 버튼 */}
       {!isOpen && (
-        <button
-          onClick={() => setIsOpen(true)}
-          aria-label="간식 도우미 열기"
-          className="fixed bottom-24 right-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary shadow-lg transition-transform hover:scale-105 overflow-hidden"
-        >
-          <img
-            src="/product-images/곰돌선생.png"
-            alt="곰돌선생"
-            width={56}
-            height={56}
-            className="h-full w-full object-cover"
-            style={{ imageRendering: 'pixelated' }}
-          />
-        </button>
+        <div className="fixed bottom-24 right-4 z-50 flex flex-col items-end gap-2">
+          {/* 말풍선 */}
+          <div className="relative bg-white rounded-2xl px-3 py-2 shadow-md border text-xs font-medium text-gray-700 whitespace-nowrap">
+            저를 클릭하세요! 🍪
+            {/* 말풍선 꼬리 */}
+            <div className="absolute -bottom-2 right-5 w-0 h-0 border-l-8 border-r-8 border-t-8 border-l-transparent border-r-transparent border-t-white" />
+          </div>
+          <button
+            onClick={() => setIsOpen(true)}
+            aria-label="간식 도우미 열기"
+            className="flex h-25 w-25 items-center justify-center rounded-full bg-rose-300 shadow-lg transition-transform hover:scale-105 overflow-hidden"
+          >
+            <img
+              src="/product-images/곰돌선생.png"
+              alt="곰돌선생"
+              width={80}
+              height={80}
+              className="h-full w-full object-cover"
+              style={{ imageRendering: 'pixelated' }}
+            />
+          </button>
+        </div>
       )}
 
       {/* 2) 열려 있을 때 보이는 대화창 */}
       {isOpen && (
         <div className="fixed bottom-24 right-4 z-50 flex h-[70vh] max-h-[520px] w-[calc(100vw-2rem)] max-w-sm flex-col overflow-hidden rounded-2xl border bg-card shadow-2xl">
           {/* 헤더 */}
-          <div className="flex items-center justify-between bg-primary px-4 py-3 text-primary-foreground">
-            <span className="font-semibold">영양사 곰돌 선생</span>
+          <div className="flex items-center justify-between bg-rose-400 px-4 py-3 text-primary-foreground">
+            <div className="flex items-center gap-2">
+              <div className="w-10 h-10 rounded-full overflow-hidden bg-white shrink-0">
+                <img
+                  src="/product-images/곰돌선생.png"
+                  alt="곰돌선생"
+                  width={50}
+                  height={50}
+                  className="h-full w-full object-cover"
+                  style={{ imageRendering: 'pixelated',transform: 'scaleX(-1)' }}
+                />
+              </div>
+              <span className="font-semibold">영양사 곰돌 선생</span>
+            </div>
             <button onClick={() => setIsOpen(false)} aria-label="닫기">
               <X className="h-5 w-5" />
             </button>
@@ -119,7 +139,7 @@ export function ChatWidget() {
                   className={
                     'max-w-[80%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm ' +
                     (m.role === 'user'
-                      ? 'bg-primary text-primary-foreground'
+                      ? 'bg-rose-400 text-primary-foreground'
                       : 'bg-muted text-foreground')
                   }
                 >
@@ -146,7 +166,7 @@ export function ChatWidget() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="메시지를 입력하세요"
+              placeholder="예) 새우 알레르기가 있는 아이에게 과자 추천해줘!"
               className="flex-1 rounded-full border bg-background px-4 py-2 text-sm outline-none focus:border-primary"
             />
             <button

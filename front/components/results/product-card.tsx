@@ -2,6 +2,7 @@
 
 import { useFilterStore } from '@/lib/filter-store';
 import type { Product } from '@/lib/types';
+import { scoreToGrade } from '@/lib/grade';
 import { cn } from '@/lib/utils';
 
 interface ProductCardProps {
@@ -10,15 +11,13 @@ interface ProductCardProps {
 }
 
 export function ProductCard({ product, index }: ProductCardProps) {
-  const { setSelectedProduct, setCurrentView, conditions } = useFilterStore();
+  const { setSelectedProduct, setCurrentView } = useFilterStore();
 
   const formatPrice = (value: number) => {
     return new Intl.NumberFormat('ko-KR').format(value);
   };
 
-  const selectedConditionsArray = Array.from(conditions);
-  const hasWarnings = selectedConditionsArray.some((c) => product.warnFor.includes(c));
-  const isSafe = selectedConditionsArray.length > 0 && !hasWarnings;
+  const grade = scoreToGrade(product.nutritionScore);
 
   const handleClick = () => {
     setSelectedProduct(product);
@@ -47,16 +46,14 @@ export function ProductCard({ product, index }: ProductCardProps) {
           </span>
         )}
 
-        {conditions.size > 0 && (
-          <div
-            className={cn(
-              'absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold',
-              isSafe ? 'bg-safe' : 'bg-warn'
-            )}
-          >
-            {isSafe ? '✓' : '!'}
-          </div>
-        )}
+        <div
+          className={cn(
+            'absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-bold shadow-sm',
+            grade.bgClass
+          )}
+        >
+          ✓
+        </div>
       </div>
 
       <div className="p-2 flex-1 flex flex-col">
@@ -68,7 +65,11 @@ export function ProductCard({ product, index }: ProductCardProps) {
           {product.name}
         </h3>
 
-        <div className="font-serif-display text-[22px] text-primary mt-2">
+        <div className={cn('text-[11px] font-medium mt-1', grade.accentClass)}>
+          {grade.label} ({grade.description})
+        </div>
+
+        <div className="font-serif-display text-[22px] text-primary mt-1">
           {formatPrice(product.price)}원
         </div>
       </div>

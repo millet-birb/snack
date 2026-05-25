@@ -11,13 +11,13 @@ export function HeroSection() {
   return (
     <section className="relative overflow-hidden bg-gradient-to-b from-[#FFFAF3] via-[#FFE9DA] to-[#FFF5EC]">
       {/* Candy stripe top border */}
-      <div 
+      <div
         className="absolute top-0 left-0 right-0 h-1.5"
         style={{
           background: 'repeating-linear-gradient(90deg, var(--primary) 0px, var(--primary) 12px, #F9B9A8 12px, #F9B9A8 24px)'
         }}
       />
-      
+
       {/* Floating emojis */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <span className="absolute top-8 left-[10%] text-4xl opacity-15 animate-float" style={{ animationDelay: '0s' }}>
@@ -36,23 +36,29 @@ export function HeroSection() {
 
       <div className="relative px-4 pt-10 pb-8">
         {/* Logo and Title */}
-        <div className="flex flex-col items-center gap-2 mb-2 animate-slide-up">
-        <img
-        src="/product-images/다람쥐.png"
-        width={120}
-        height={120}
-        alt="스낵몬스터"
-        style={{ imageRendering: 'pixelated' }}
-        />
+        <div className="flex flex-col items-center gap-0 mb-2 animate-slide-up">
+          <img
+            src="/product-images/다람쥐.png"
+            width={120}
+            height={120}
+            alt="스낵몬스터"
+            style={{ imageRendering: 'pixelated', marginBottom: '-40px' }}
+          />
 
-          <h1 className="font-display text-4xl text-center text-text">
-            스낵몬스터
-          </h1>
+          <img
+            src="/product-images/스낵몬스터.png"
+            alt="스낵몬스터글자"
+            style={{
+              imageRendering: 'pixelated',
+              height: '120px',
+              width: 'auto'
+            }}
+          />
         </div>
 
         {/* Headline */}
-        <div className="text-center mb-6 animate-slide-up" style={{ animationDelay: '0.1s' }}>
-          <h2 className="font-display text-[28px] leading-tight text-text mb-2">
+        <div className="text-center mb-1 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+          <h2 className="font-display text-[30px] font-medium leading-tight text-text mb-2">
             우리 아이에게 딱 맞는 과자 찾아드릴게요!
           </h2>
           <p className="text-sm text-text-2 mx-auto">

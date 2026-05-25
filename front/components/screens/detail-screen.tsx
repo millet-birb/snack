@@ -1,9 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ArrowLeft, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { useFilterStore } from '@/lib/filter-store';
 import type { Product, Condition } from '@/lib/types';
+import { scoreToGrade } from '@/lib/grade';
 import { cn } from '@/lib/utils';
 
 const BACKEND_URL =
@@ -23,11 +24,14 @@ const ALL_CONDITIONS = [
 type DetailCondition = (typeof ALL_CONDITIONS)[number];
 
 export function DetailScreen() {
-  const { selectedProduct, setCurrentView } = useFilterStore();
+  const { selectedProduct, setCurrentView, conditions, tastes } = useFilterStore();
 
   const [detail, setDetail] = useState<Product | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  // Set identity가 매번 바뀌므로 배열로 메모해 의존성 배열에 안전하게 넣음
+  const tasteList = useMemo(() => Array.from(tastes ?? []), [tastes]);
 
   useEffect(() => {
     if (!selectedProduct?.id) return;
@@ -37,7 +41,14 @@ export function DetailScreen() {
         setLoading(true);
         setError('');
 
-        const res = await fetch(`${BACKEND_URL}/api/products/${selectedProduct.id}`);
+        const params = new URLSearchParams();
+        if (tasteList.length > 0) {
+          params.set('tastes', tasteList.join(','));
+        }
+        const queryString = params.toString();
+        const url = `${BACKEND_URL}/api/products/${selectedProduct.id}${queryString ? `?${queryString}` : ''}`;
+
+        const res = await fetch(url);
         if (!res.ok) {
           throw new Error(`상세 조회 실패: ${res.status}`);
         }
@@ -54,7 +65,7 @@ export function DetailScreen() {
     };
 
     fetchDetail();
-  }, [selectedProduct]);
+  }, [selectedProduct, tasteList]);
 
   const product = detail ?? selectedProduct;
 
@@ -77,9 +88,59 @@ export function DetailScreen() {
     );
   }
 
+  const sizeInfoParts: string[] = [];
+  //if (product.foodWeight) sizeInfoParts.push(`식품중량 ${product.foodWeight}`);
+  if (product.weightG != null) sizeInfoParts.push(`중량 ${product.weightG}g`);
+  if (product.itemCount != null) sizeInfoParts.push(`갯수 ${product.itemCount}개`);
+
   const safeSet = new Set(product.safeFor ?? []);
   const warnSet = new Set(product.warnFor ?? []);
   const warnIngredients = product.warnIngredients ?? {};
+  const selectedEvaluation = selectedProduct ?? product;
+  const selectedSafeSet = new Set(selectedEvaluation.safeFor ?? []);
+  const selectedConditions = Array.from(conditions);
+  const selectedSafeConditions = selectedConditions.filter((condition) =>
+    selectedSafeSet.has(condition)
+  );
+  const matchedTastes = Array.from(tastes).filter((taste) =>
+    (product.tasteTags ?? []).includes(taste)
+  );
+
+  // 등급은 safeSnackScore 우선, 없으면 nutritionScore로 폴백
+  const gradeScore = product.safeSnackScore ?? product.nutritionScore ?? 0;
+  const grade = scoreToGrade(gradeScore);
+
+  // 추천 이유 카테고리: 안전성 / 영양 평가 / 영양 보너스 / 맛 매칭
+  // 영양 임계값은 백엔드 bad_rules와 동일
+  const nutrientLevel = (
+    value: number,
+    lowMax: number,
+    highMin: number,
+  ): '낮음' | '보통' | '높음' => {
+    if (value <= lowMax) return '낮음';
+    if (value >= highMin) return '높음';
+    return '보통';
+  };
+
+  const sugarG = product.nutrition?.sugarG ?? 0;
+  const sodiumMg = product.nutrition?.sodiumMg ?? 0;
+  const proteinG = product.nutrition?.proteinG ?? 0;
+  const fiberG = product.nutrition?.fiberG ?? 0;
+
+  const reasonLines: string[] = [];
+  if (selectedSafeConditions.length > 0) {
+    reasonLines.push(`선택한 ${selectedSafeConditions.join('·')} 조건 통과`);
+  }
+  reasonLines.push(
+    `당류 ${sugarG}g (${nutrientLevel(sugarG, 3, 12)}) · 나트륨 ${sodiumMg}mg (${nutrientLevel(sodiumMg, 100, 350)})`,
+  );
+  const bonuses: string[] = [];
+  if (proteinG >= 5) bonuses.push(`단백질 ${proteinG}g 함유`);
+  if (fiberG >= 3) bonuses.push(`식이섬유 ${fiberG}g 함유`);
+  if (bonuses.length > 0) reasonLines.push(bonuses.join(' · '));
+  if (matchedTastes.length > 0) {
+    reasonLines.push(`선택한 맛 '${matchedTastes.join(', ')}' 일치`);
+  }
 
   const conditionLabelMap: Record<DetailCondition, string> = {
     알레르기: '알레르기',
@@ -127,9 +188,35 @@ export function DetailScreen() {
             {product.name}
           </h1>
 
-          <div className="mt-4 text-[44px] font-semibold leading-none text-primary">
+          {sizeInfoParts.length > 0 && (
+            <div className="mt-2 text-[11px] text-text-3">
+              {sizeInfoParts.join(' · ')}
+            </div>
+          )}
+
+          <div className="mt-3 text-[44px] font-semibold leading-none text-primary">
             {product.price}원
           </div>
+
+          <div className="mt-6 rounded-2xl border-l-4 border-primary bg-[#FFF8F5] px-4 py-4">
+            <div className="flex items-start gap-1.5">
+              <span className="text-sm leading-[1.4]">💡</span>
+              <div className="flex-1">
+                <div className={cn('text-sm font-semibold', grade.accentClass)}>
+                  {grade.label} · {grade.description}
+                </div>
+                <div className="mt-2 space-y-1 text-sm leading-6 text-text-2">
+                  {reasonLines.map((line, idx) => (
+                    <p key={idx}>✓ {line}</p>
+                  ))}
+                </div>
+                <p className="mt-3 text-[10px] leading-relaxed text-text-3">
+                  본 평가는 자체 기준에 따른 것이며, 의학적 권고가 아닙니다.
+                </p>
+              </div>
+            </div>
+          </div>
+
 
           <div className="mt-6">
             <h2 className="text-sm font-semibold text-text">질환별 안전 여부</h2>
@@ -226,23 +313,12 @@ export function DetailScreen() {
             </div>
           </div>
 
-          <div className="mt-6 rounded-2xl border-l-4 border-primary bg-[#FFF8F5] px-4 py-4">
-            <div className="text-sm font-semibold text-primary">
-              💡 이 과자를 추천하는 이유
-            </div>
-            <p className="mt-2 text-sm leading-6 text-text-2">
-              {product.recommendationReason?.trim()
-                ? product.recommendationReason
-                : '현재 선택한 조건을 기준으로 확인했을 때 비교적 무난하게 선택할 수 있는 과자예요. 원재료와 영양 정보를 함께 확인하면서 고르면 더 좋아요.'}
-            </p>
-          </div>
-
           <button
             type="button"
-            onClick={() => alert('쿠팡 연동 준비 중이에요 🏪')}
+            onClick={() => alert('네이버 스토어 연동 준비 중이에요 🏪')}
             className="mt-6 w-full rounded-[24px] bg-primary px-4 py-4 text-base font-semibold text-white shadow-sm"
           >
-            🛒 쿠팡에서 구매하기
+            🛒 네이버 스토어에서 구매하기
           </button>
 
           {loading && (

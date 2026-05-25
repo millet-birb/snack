@@ -18,6 +18,12 @@ from openai import OpenAI
 from pydantic import BaseModel, Field
 
 from app.services.product_service import get_products
+from app.services.product_filters import normalize_conditions
+from app.services.group_service import (
+    recommend_mode_a,
+    recommend_mode_b,
+    recommend_mode_c,
+)
 
 # backend/.env 를 명시적으로 불러온다.
 #   이 파일: backend/app/routers/chat.py  ->  parents[2] = backend/
@@ -64,11 +70,22 @@ CONDITION_OPTIONS = [
     "카페인",
 ]
 
+# 단체구매 도구에서 LLM이 고를 수 있는 맛 태그 목록 (filter_engine.TASTE_KEYWORDS / NAME_TASTE_KEYWORDS 기준).
+# tastes(포함)와 excludeTastes(제외) 둘 다 이 목록에서 고른다.
+TASTE_OPTIONS = [
+    "달달", "카라멜", "초코", "말차", "커피",
+    "짭짤", "버터갈릭", "치즈", "고소",
+    "매콤", "바베큐", "양파", "와사비",
+    "새우", "오징어", "감자", "고구마", "옥수수", "김", "누룽지",
+    "딸기", "바나나", "복숭아", "사과", "파인애플", "멜론", "블루베리", "귤감귤",
+    "요거트",
+]
+
 # 챗봇의 성격과 역할을 정해주는 '시스템 프롬프트'.
 SYSTEM_PROMPT = (
     "너는 'SafeSnack'이라는 서비스의 친절한 간식 상담 도우미야. "
     "아이의 건강 상태에 맞춰 안전한 간식을 한국어로 따뜻하게 추천해줘.\n"
-    "사용자가 간식 추천을 원하거나 특정 조건의 제품을 찾으면, "
+    "사용자가 한 아이를 위한 간식 추천이나 특정 조건의 제품을 찾으면, "
     "반드시 search_snacks 도구를 사용해 실제 제품을 검색한 뒤 답변해. "
     "도구 결과에 없는 제품을 지어내면 안 돼.\n"
     "알레르기 조건은 가능한 한 좁게 선택해. "
@@ -83,7 +100,24 @@ SYSTEM_PROMPT = (
     "추천할 때는 제품명·브랜드·가격과 함께, "
     "'1회 섭취량(예: 30g) 기준 ~kcal' 처럼 1회 섭취량과 그 칼로리를 같이 알려줘. "
     "왜 추천하는지 한두 문장으로 설명해줘. "
-    "의학적 진단은 내리지 말고, 걱정되는 증상이 있으면 전문가 상담을 권해줘."
+    "의학적 진단은 내리지 말고, 걱정되는 증상이 있으면 전문가 상담을 권해줘.\n"
+    "─── 예산/가격 언급 규칙 ───\n"
+    "사용자가 예산이나 가격(예: '2만 원 이하', '예산 3만 원', '5천원짜리')을 "
+    "말하지 않았다면, 답변에서 '총예산은 ~원입니다', '예산 ~원에 맞춰' 같은 "
+    "예산 관련 문구를 절대 만들어 쓰지 마. 도구 호출 시에도 budget 필드를 비워두고 "
+    "임의의 기본값(2만원 등)을 끼워넣지 마.\n"
+    "─── 단체구매(여러 명) 처리 ───\n"
+    "사용자가 '총 N명', '단체', '여러 명', '조합 추천', '예산 N원으로 카트' 같이 "
+    "여러 아이를 위한 추천을 원하면 'recommend_group_purchase' 도구를 써. "
+    "기본 mode='C'(자동 카트 구성)을 쓰고, 사용자가 '같은 과자 한 종으로'라고 하면 sameSnack=true, "
+    "'아이마다 다른 과자'라고 하면 sameSnack=false 로 한다. "
+    "diseaseGroups는 질환별 인원수 맵으로 보낸다. 예) 우유 알레르기 2명이면 "
+    "diseaseGroups={\"알레르기\":2}, allergyConditions=[\"알레르기_우유\"] 처럼 "
+    "묶음 키(\"알레르기\")로 인원을 세고 세부 알레르겐은 allergyConditions에 넣어.\n"
+    "맛 처리: '단 거 빼고', '너무 달지 않은', '단맛 제외'는 excludeTastes=[\"달달\",\"카라멜\"] 로 보낸다 "
+    "(초코까지 빼고 싶다는 명확한 표현이 있으면 \"초코\"도 추가). "
+    "특정 맛을 원한다는 표현('짭짤한', '치즈맛')만 tastes에 넣고, '제외'는 절대 tastes 에 넣지 마. "
+    "tastes와 excludeTastes에서 같은 태그를 동시에 쓰지 마."
 )
 
 # ---- OpenAI에 알려줄 '도구' 설명 -------------------------------------------
@@ -110,7 +144,11 @@ SEARCH_SNACKS_TOOL = {
                 },
                 "budget": {
                     "type": "integer",
-                    "description": "1개당 최대 가격(원). 예산 언급이 없으면 20000.",
+                    "description": (
+                        "1개당 최대 가격(원). 사용자가 '~원 이하', '예산 ~원', "
+                        "'~원짜리' 처럼 가격을 명시적으로 말한 경우에만 보낸다. "
+                        "언급이 없으면 절대 임의의 기본값을 넣지 말고 필드 자체를 생략해."
+                    ),
                 },
                 "maxCaloriesPerServing": {
                     "type": "integer",
@@ -123,6 +161,71 @@ SEARCH_SNACKS_TOOL = {
                 },
             },
             "required": ["conditions"],
+        },
+    },
+}
+
+GROUP_PURCHASE_TOOL = {
+    "type": "function",
+    "function": {
+        "name": "recommend_group_purchase",
+        "description": (
+            "여러 명을 위한 단체구매 추천. 사용자가 '총 N명', '단체', '여러 명', "
+            "'예산 N원으로 조합', '나눠 사' 등을 말하면 사용한다."
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "totalPeople": {
+                    "type": "integer",
+                    "description": "전체 인원 수 (예: '총 10명' → 10).",
+                },
+                "diseaseGroups": {
+                    "type": "object",
+                    "description": (
+                        "질환별 인원수 맵. 키는 search_snacks의 conditions 와 같은 어휘를 쓰되, "
+                        "알레르기는 묶음 키 '알레르기'로 인원수만 센다 (세부 알레르겐은 allergyConditions로)."
+                    ),
+                    "additionalProperties": {"type": "integer"},
+                },
+                "allergyConditions": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": CONDITION_OPTIONS},
+                    "description": "구체적인 알레르겐(예: '알레르기_우유'). 일반 알레르기 인원은 diseaseGroups에 두고, 여기엔 세부 알레르겐만.",
+                },
+                "tastes": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": TASTE_OPTIONS},
+                    "description": "포함하고 싶은 맛 태그. '제외' 의도는 절대 넣지 말 것.",
+                },
+                "excludeTastes": {
+                    "type": "array",
+                    "items": {"type": "string", "enum": TASTE_OPTIONS},
+                    "description": "제외할 맛 태그. '단 거 빼고' → ['달달','카라멜'] 처럼 변환.",
+                },
+                "budget": {
+                    "type": "integer",
+                    "description": "총 예산(원). 예) '3만 원' → 30000.",
+                },
+                "mode": {
+                    "type": "string",
+                    "enum": ["A", "B", "C"],
+                    "description": (
+                        "A=전원 같이 먹을 수 있는 과자 목록만 반환, "
+                        "B=질환별 그룹마다 따로 후보 목록, "
+                        "C=예산에 맞춰 자동으로 장바구니까지 구성(기본값)."
+                    ),
+                },
+                "perPerson": {
+                    "type": "integer",
+                    "description": "1인당 받을 낱개 수 (mode=C에서만 사용, 기본 1).",
+                },
+                "sameSnack": {
+                    "type": "boolean",
+                    "description": "mode=C에서 그룹 내 모두 같은 과자(True) vs 인원마다 다른 과자(False). 기본 True.",
+                },
+            },
+            "required": ["totalPeople", "budget"],
         },
     },
 }
@@ -187,7 +290,11 @@ def run_search_snacks(args: dict) -> dict:
     """
     conditions = args.get("conditions", []) or []
     query = args.get("query", "") or ""
-    budget = args.get("budget") or 20000
+    # 사용자가 예산을 말한 적이 없으면 budget=0 으로 호출해서
+    # apply_budget_filter 가 가격 컷오프 자체를 건너뛰게 한다.
+    # (이전에는 20000원을 슬며시 끼워넣어 LLM이 가짜 예산을 답변에 적어버렸음.)
+    budget_arg = args.get("budget")
+    budget = int(budget_arg) if budget_arg else 0
     max_cal_per_serving = args.get("maxCaloriesPerServing")
     sort_by = args.get("sortBy", "nutritionScore")
 
@@ -242,6 +349,79 @@ def run_search_snacks(args: dict) -> dict:
     return {"totalFound": total_found, "products": products}
 
 
+def run_group_purchase(args: dict) -> dict:
+    """OpenAI가 recommend_group_purchase 도구를 호출하면 실행되는 함수.
+
+    group_service 는 백엔드 어휘(천식, 카페인주의 ...) 를 기대하므로
+    diseaseGroups 키는 normalize_conditions 로 한 번 번역해 넘긴다.
+    응답은 토큰을 아끼기 위해 cart/groups/products 의 핵심 필드만 남긴다.
+    """
+    total_people = int(args.get("totalPeople") or 0)
+    budget = int(args.get("budget") or 0)
+    if total_people <= 0 or budget <= 0:
+        return {"error": "totalPeople 과 budget 은 양수여야 해요."}
+
+    raw_groups: dict = args.get("diseaseGroups") or {}
+    front_keys = list(raw_groups.keys())
+    back_keys = normalize_conditions(front_keys)
+    disease_groups = {bk: int(raw_groups[fk] or 0) for fk, bk in zip(front_keys, back_keys)}
+
+    group_info = {"totalPeople": total_people, "diseaseGroups": disease_groups}
+    allergy = args.get("allergyConditions") or []
+    tastes = args.get("tastes") or []
+    exclude_tastes = args.get("excludeTastes") or []
+    mode = (args.get("mode") or "C").upper()
+
+    try:
+        if mode == "A":
+            res = recommend_mode_a(
+                group_info=group_info, tastes=tastes, budget=budget,
+                allergy_conditions=allergy, exclude_tastes=exclude_tastes,
+            )
+        elif mode == "B":
+            res = recommend_mode_b(
+                group_info=group_info, tastes=tastes, budget=budget,
+                allergy_conditions=allergy, exclude_tastes=exclude_tastes,
+            )
+        else:
+            res = recommend_mode_c(
+                group_info=group_info, tastes=tastes, budget=budget,
+                per_person=int(args.get("perPerson") or 1),
+                pinned_ids=[], pinned_groups=[], pinned_group_counts={},
+                allergy_conditions=allergy,
+                same_snack=bool(args.get("sameSnack", True)),
+                exclude_tastes=exclude_tastes,
+            )
+    except Exception as e:
+        logger.exception("group recommend failed: %s", e)
+        return {"error": "단체구매 추천 중 오류가 발생했어요."}
+
+    # 토큰 절약: LLM 에게는 핵심 필드만.
+    if "cart" in res:
+        res["cart"] = [
+            {
+                "name": c.get("name"),
+                "brand": c.get("brand", ""),
+                "qty": c.get("quantity"),
+                "subtotal": c.get("subtotal"),
+                "group": c.get("groupLabel", ""),
+            }
+            for c in res["cart"]
+        ]
+    if "products" in res:
+        res["products"] = [
+            {"name": p.get("name"), "brand": p.get("brand", ""), "price": p.get("price")}
+            for p in res["products"][:10]
+        ]
+    if "groups" in res:
+        for g in res["groups"]:
+            g["products"] = [
+                {"name": p.get("name"), "brand": p.get("brand", ""), "price": p.get("price")}
+                for p in g.get("products", [])[:5]
+            ]
+    return res
+
+
 # ---- 엔드포인트 -------------------------------------------------------------
 @router.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest):
@@ -282,7 +462,7 @@ def chat(req: ChatRequest):
             # 첫 턴에만 도구 스키마를 보낸다. enum(27개)이 무거워서 매 턴마다
             # 재전송하면 토큰 낭비가 크다. 최종 답변 생성 턴엔 불필요.
             if i == 0:
-                kwargs["tools"] = [SEARCH_SNACKS_TOOL]
+                kwargs["tools"] = [SEARCH_SNACKS_TOOL, GROUP_PURCHASE_TOOL]
             completion = client.chat.completions.create(**kwargs)
             ai_message = completion.choices[0].message
 
@@ -295,10 +475,14 @@ def chat(req: ChatRequest):
             # 도구를 호출했다 = AI의 '도구 호출' 메시지를 기록에 추가
             messages.append(ai_message)
 
-            # 호출된 각 도구를 실제로 실행하고, 그 결과를 기록에 추가
+            # 호출된 각 도구를 이름 기준으로 디스패치하고 결과를 기록에 추가
             for tool_call in ai_message.tool_calls:
+                fn_name = tool_call.function.name
                 args = json.loads(tool_call.function.arguments or "{}")
-                result = run_search_snacks(args)
+                if fn_name == "recommend_group_purchase":
+                    result = run_group_purchase(args)
+                else:
+                    result = run_search_snacks(args)
                 messages.append({
                     "role": "tool",
                     "tool_call_id": tool_call.id,

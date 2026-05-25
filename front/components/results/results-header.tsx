@@ -20,7 +20,7 @@ export function ResultsHeader({ totalCount }: ResultsHeaderProps) {
   const { sort, setSort, setCurrentView, query, setQuery } = useFilterStore();
 
   const currentSortLabel =
-    SORT_OPTIONS.find((o) => o.value === sort)?.label || '점수순';
+    SORT_OPTIONS.find((o) => o.value === sort)?.label || '추천순';
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();

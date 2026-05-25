@@ -7,6 +7,22 @@ def _safe_number(value, default=0):
     return value
 
 
+def _safe_str(value) -> str:
+    if value is None or pd.isna(value):
+        return ""
+    return str(value).strip()
+
+
+def _to_int_or_none(value):
+    s = _safe_str(value)
+    if not s:
+        return None
+    try:
+        return int(float(s))
+    except (ValueError, TypeError):
+        return None
+
+
 def _per_serving_number(row: pd.Series, *source_columns: str) -> float:
     """Return a nutrient amount normalized to the product's serving size."""
     for column in source_columns:
@@ -37,8 +53,16 @@ def serialize_product(row: pd.Series) -> dict:
         "price": int(_safe_number(row.get("price", row.get("가격", 0)), 0)),
         "pricePerUnit": int(_safe_number(row.get("price_per_unit", 0), 0)),
         "servingG": float(_safe_number(row.get("serving_g", 0), 0)),
+        "foodWeight": _safe_str(row.get("식품중량")),
+        "weightG": _to_int_or_none(row.get("중량(g)")),
+        "itemCount": _to_int_or_none(row.get("갯수(개)")),
         "nutritionScore": float(_safe_number(row.get("nutrition_score", 0), 0)),
         "scorePerPrice": float(_safe_number(row.get("score_per_price", 0), 0)),
+        # 안심간식 종합 점수 — 상세 페이지에서만 채워짐 (compute_safe_snack_score 호출 시)
+        "safeSnackScore": _to_int_or_none(row.get("safe_snack_score")),
+        "nutritionRiskScore": _to_int_or_none(row.get("nutrition_risk_score")),
+        "publicPolicyScore": _to_int_or_none(row.get("public_policy_score")),
+        "preferenceScore": _to_int_or_none(row.get("preference_score")),
         "tasteTags": row.get("taste_tags", []) if isinstance(row.get("taste_tags", []), list) else [],
         "safeFor": eval_data.get("safe_for", []),
         "warnFor": eval_data.get("warn_for", []),

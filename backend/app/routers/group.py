@@ -48,6 +48,7 @@ class ModeARequest(BaseModel):
     tastes: list[str] = Field(default_factory=list, max_length=MAX_LIST)
     budget: int = Field(..., ge=0, le=MAX_BUDGET)
     allergyConditions: list[str] = Field(default_factory=list, max_length=MAX_LIST)
+    excludeTastes: list[str] = Field(default_factory=list, max_length=MAX_LIST)
 
 
 class ModeBRequest(BaseModel):
@@ -55,6 +56,7 @@ class ModeBRequest(BaseModel):
     tastes: list[str] = Field(default_factory=list, max_length=MAX_LIST)
     budget: int = Field(..., ge=0, le=MAX_BUDGET)
     allergyConditions: list[str] = Field(default_factory=list, max_length=MAX_LIST)
+    excludeTastes: list[str] = Field(default_factory=list, max_length=MAX_LIST)
 
 
 class ModeCRequest(BaseModel):
@@ -67,6 +69,7 @@ class ModeCRequest(BaseModel):
     pinnedGroupCounts: dict[str, int] = Field(default_factory=dict, max_length=MAX_DISEASE_GROUPS)
     allergyConditions: list[str] = Field(default_factory=list, max_length=MAX_LIST)
     sameSnack: bool = True
+    excludeTastes: list[str] = Field(default_factory=list, max_length=MAX_LIST)
 
 
 class CartItem(BaseModel):
@@ -88,6 +91,7 @@ def group_mode_a(req: ModeARequest):
         tastes=req.tastes,
         budget=req.budget,
         allergy_conditions=req.allergyConditions,
+        exclude_tastes=req.excludeTastes,
     )
 
 
@@ -98,6 +102,7 @@ def group_mode_b(req: ModeBRequest):
         tastes=req.tastes,
         budget=req.budget,
         allergy_conditions=req.allergyConditions,
+        exclude_tastes=req.excludeTastes,
     )
 
 
@@ -113,6 +118,7 @@ def group_mode_c(req: ModeCRequest):
         pinned_group_counts=req.pinnedGroupCounts,
         allergy_conditions=req.allergyConditions,
         same_snack=req.sameSnack,
+        exclude_tastes=req.excludeTastes,
     )
 
 

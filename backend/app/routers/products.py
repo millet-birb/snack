@@ -47,12 +47,14 @@ def products(
 
 
 @router.get("/products/{product_id}")
-def product_detail(product_id: str):
+def product_detail(product_id: str, tastes: str = ""):
     # 경로 파라미터에도 길이 제한 — 비정상적으로 긴 ID 가 흘러들지 못하게.
     if len(product_id) > 200:
         raise HTTPException(status_code=400, detail="invalid product id")
 
-    product = get_product_detail(product_id)
+    selected_tastes = [t.strip() for t in tastes.split(",") if t.strip()] or None
+
+    product = get_product_detail(product_id, selected_tastes=selected_tastes)
     if not product:
         raise HTTPException(
             status_code=404,

@@ -12,9 +12,9 @@ from app.services.filter_engine import (
     load_data,
     filter_safe_products,
     compute_nutrition_score,
+    compute_safe_snack_score,
     tag_taste,
     evaluate_product,
-    tag_taste,
 )
 from app.services.product_repository import get_base_df
 from app.services.product_filters import (
@@ -70,10 +70,12 @@ def get_products(
         "products": products,
     }
 
-def get_product_detail(product_id: str) -> Optional[dict]:
+def get_product_detail(
+    product_id: str,
+    selected_tastes: Optional[list[str]] = None,
+) -> Optional[dict]:
     df = get_base_df().copy()
     df = compute_nutrition_score(df)
-
 
     def _id_of_row(row):
         return str(row.get("stable_id", row.name))
@@ -89,12 +91,12 @@ def get_product_detail(product_id: str) -> Optional[dict]:
     all_conditions = [
         "알레르기",
         "아토피",
-        "천식",
+        "소아천식",
         "유당불내증",
         "아나필락시스",
         "소아비만",
         "소아당뇨",
-        "카페인주의",
+        "카페인",
     ]
     row["eval"] = evaluate_product(row, all_conditions)
 
@@ -104,6 +106,11 @@ def get_product_detail(product_id: str) -> Optional[dict]:
             str(row.get("원재료명", "")),
             str(row.get("품목명", "")),
         )
+
+    # 안심간식 종합 점수 (단일 행 DataFrame으로 계산)
+    single_df = pd.DataFrame([row])
+    single_df = compute_safe_snack_score(single_df, selected_tastes=selected_tastes)
+    row = single_df.iloc[0]
 
     return serialize_product(row)
 

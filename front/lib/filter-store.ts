@@ -4,7 +4,7 @@ import type { Product, Condition, TasteTag, SortOption } from '@/lib/types';
 type ViewType = 'home' | 'results' | 'detail' | 'group';  // group 추가
 
 const DEFAULT_BUDGET = 5000;
-const DEFAULT_SORT: SortOption = 'price_asc';
+const DEFAULT_SORT: SortOption = 'score_desc';
 
 interface FilterStore {
   currentView: ViewType;

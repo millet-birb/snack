@@ -49,7 +49,8 @@ interface CartItem {
   name: string;
   brand: string;
   price: number;
-  quantity: number;
+  quantity: number;       // 박스(상품) 수
+  itemCount?: number | null;  // 한 박스 안 낱개 수 (멀티팩이면 30 등)
   subtotal: number;
   groupLabel: string;
   imageUrl?: string;
@@ -234,6 +235,7 @@ export function GroupPurchaseScreen() {
       brand: product.brand,
       price: product.price,
       quantity,
+      itemCount: product.itemCount,
       subtotal: product.price * quantity,
       groupLabel,
       imageUrl: product.imageUrl,
@@ -290,6 +292,7 @@ export function GroupPurchaseScreen() {
             onChange={(e) => setTotalPeople(Number(e.target.value))}
             placeholder="예) 20" className="border rounded-lg px-3 py-2 w-full text-sm"
           />
+          <p className="text-xs text-gray-400 mt-1">💡 최대 1,000명까지 입력 가능해요</p>
         </div>
         <div className="mb-4">
           <label className="text-sm text-gray-600 mb-2 block">
@@ -388,8 +391,9 @@ export function GroupPurchaseScreen() {
           <input
             type="number" min={0} value={budget || ''}
             onChange={(e) => setBudget(Number(e.target.value))}
-            placeholder="예) 50000" className="border rounded-lg px-3 py-2 w-full text-sm"
+            placeholder="예) 50,000" className="border rounded-lg px-3 py-2 w-full text-sm"
           />
+          <p className="text-xs text-gray-400 mt-1">💡 최대 500만원까지 입력 가능해요</p>
         </div>
       </section>
 
@@ -445,13 +449,6 @@ export function GroupPurchaseScreen() {
                 </button>
               </div>
               <div className="flex items-center gap-3">
-                <label className="text-sm text-gray-600">1인당 과자 수</label>
-                <input
-                  type="number" min={1} value={perPerson}
-                  onChange={(e) => setPerPerson(Number(e.target.value))}
-                  className="border rounded-lg px-2 py-1 w-16 text-sm"
-                />
-                <span className="text-sm text-gray-400">개</span>
                 <button
                   onClick={() => callModeC()}
                   className="ml-auto bg-[#D9472E] text-white rounded-lg px-3 py-1 text-sm"
@@ -541,6 +538,10 @@ export function GroupPurchaseScreen() {
           <div className="bg-white rounded-2xl px-5 pt-4 pb-2 shadow-sm">
             <h2 className="font-bold text-base mb-1">🤖 자동 추천 장바구니</h2>
             <p className="text-xs text-gray-400 mb-3">📌 누르면 다시 추천해도 고정돼요!</p>
+            {/* 중복 배정 경고만 표시 */}
+            {warnings.filter((w) => w.type === 'duplicate_snack').map((w, idx) => (
+              <p key={idx} className="text-xs text-orange-500 mb-2">⚠️ {w.message}</p>
+            ))}
           </div>
           {/* 그룹별로 묶어서 표시 */}
           {Array.from(new Set(cart.map((item) => item.groupLabel))).map((label) => {
@@ -556,7 +557,11 @@ export function GroupPurchaseScreen() {
                         <div>
                           <div className="text-sm font-medium">{item.name}</div>
                           <div className="text-xs text-gray-400">
-                            {item.quantity}개 · {item.subtotal?.toLocaleString()}원
+                            {item.itemCount && item.itemCount > 1
+                              ? `${item.quantity}세트 × ${item.itemCount}개`
+                              : `${item.quantity}개`}
+                            {' · '}
+                            {item.subtotal?.toLocaleString()}원
                           </div>
                         </div>
                         <button
@@ -584,7 +589,27 @@ export function GroupPurchaseScreen() {
               <div key={idx} className="flex items-center justify-between border rounded-xl px-3 py-2">
                 <div className="flex-1">
                   <div className="text-sm font-medium">{item.name}</div>
-                  <div className="text-xs text-gray-400">{item.groupLabel} · {item.subtotal?.toLocaleString()}원</div>
+                  <div className="text-xs text-gray-400">
+                    {mode === 'A' ? (
+                      <>
+                        {item.quantity}개
+                        {item.itemCount && item.itemCount > 1
+                          ? ` × ${item.itemCount}개입`
+                          : ''}
+                        {' · '}
+                        {item.subtotal?.toLocaleString()}원
+                      </>
+                    ) : (
+                      <>
+                        {item.groupLabel}
+                        {item.itemCount && item.itemCount > 1
+                          ? ` · 1박스당 ${item.itemCount}개`
+                          : ''}
+                        {' · '}
+                        {item.subtotal?.toLocaleString()}원
+                      </>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <QuantityControl item={item} />
@@ -593,17 +618,6 @@ export function GroupPurchaseScreen() {
               </div>
             ))}
           </div>
-        </section>
-      )}
-
-      {/* 경고 */}
-      {warnings.length > 0 && (
-        <section className="bg-orange-50 rounded-2xl p-4 mb-4">
-          {warnings.map((w, idx) => (
-            <p key={idx} className="text-xs text-orange-600 mb-1">
-              ⚠️ {w.message || `${w.productName}이 일부 아동에게 주의가 필요해요 (${w.warnFor?.join(', ')})`}
-            </p>
-          ))}
         </section>
       )}
 

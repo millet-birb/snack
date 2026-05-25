@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 
 
@@ -300,33 +301,192 @@ def filter_safe_products(df: pd.DataFrame, conditions: list) -> pd.DataFrame:
 # ─────────────────────────────────────────────
 # 5. 영양 점수 계산
 # ─────────────────────────────────────────────
+
+# 5.1 컬럼 후보 정의 — load_data()가 만드는 _1회 환산 컬럼 우선
+# 칼슘/철은 load_data()의 nutrition_cols에 없어서 _1회 환산이 안 됨 → 100g 기준 컬럼만 존재.
+# 임계값(good_rules)이 1회 제공량 기준이라 칼슘/철 보너스는 약간 과대 평가될 수 있음.
+NUTRIENT_COLS = {
+    "calories":      ["에너지(kcal)_1회", "에너지(kcal)"],
+    "sugar":         ["당류(g)_1회", "당류(g)"],
+    "sodium":        ["나트륨(mg)_1회", "나트륨(mg)"],
+    "saturated_fat": ["포화지방산(g)_1회", "포화지방산(g)"],
+    "trans_fat":     ["트랜스지방산(g)_1회", "트랜스지방산(g)"],
+    "cholesterol":   ["콜레스테롤(mg)_1회", "콜레스테롤(mg)"],
+    "protein":       ["단백질(g)_1회", "단백질(g)"],
+    "fiber":         ["식이섬유(g)_1회", "식이섬유(g)"],
+    "calcium":       ["칼슘(mg)"],  # _1회 컬럼 없음 — 100g 기준
+    "iron":          ["철(mg)"],     # _1회 컬럼 없음 — 100g 기준
+}
+
+
+# 5.2 공통 유틸
+def _find_col(df: pd.DataFrame, candidates: list[str]) -> str | None:
+    for col in candidates:
+        if col in df.columns:
+            return col
+    return None
+
+
+def _get_numeric_series(df: pd.DataFrame, candidates: list[str]) -> pd.Series:
+    col = _find_col(df, candidates)
+    if col is None:
+        return pd.Series(np.nan, index=df.index)
+    return pd.to_numeric(df[col], errors="coerce")
+
+
+def _scale_penalty(
+    values: pd.Series,
+    no_penalty_at: float,
+    max_penalty_at: float,
+    max_penalty: float,
+    missing_penalty_ratio: float = 0.35,
+) -> pd.Series:
+    """나쁜 성분 감점. no_penalty_at 이하면 0, max_penalty_at 이상이면 최대감점."""
+    penalty = ((values - no_penalty_at) / (max_penalty_at - no_penalty_at)) * max_penalty
+    penalty = penalty.clip(lower=0, upper=max_penalty)
+    penalty = penalty.fillna(max_penalty * missing_penalty_ratio)
+    return penalty
+
+
+def _scale_bonus(
+    values: pd.Series,
+    no_bonus_at: float,
+    max_bonus_at: float,
+    max_bonus: float,
+) -> pd.Series:
+    """좋은 성분 가산점. 결측은 0."""
+    bonus = ((values - no_bonus_at) / (max_bonus_at - no_bonus_at)) * max_bonus
+    bonus = bonus.clip(lower=0, upper=max_bonus)
+    bonus = bonus.fillna(0)
+    return bonus
+
+
+def _contains_any_tag(value, selected_tags: list[str]) -> int:
+    if value is None or (not isinstance(value, list) and pd.isna(value)):
+        return 0
+    tags_text = " ".join(map(str, value)) if isinstance(value, list) else str(value)
+    return sum(1 for tag in selected_tags if tag and tag in tags_text)
+
+
+# 5.3 영양 위험 점수 — 100점 시작, 위험 성분 감점 + 좋은 성분 가산
+def compute_nutrition_risk_score(
+    df: pd.DataFrame,
+    missing_penalty_ratio: float = 0.35,
+) -> pd.Series:
+    """
+    1회 제공량 기준 임계값. _1회 컬럼이 있으면 자동 사용.
+    임계값은 임시 설계값이므로 실제 분포를 보고 조정 필요.
+    """
+    score = pd.Series(100.0, index=df.index)
+
+    bad_rules = {
+        "sugar":         (3,   12,   30),
+        "sodium":        (100, 350,  20),
+        "saturated_fat": (1,   4,    15),
+        "trans_fat":     (0,   0.2,  15),
+        "calories":      (100, 250,  10),
+        "cholesterol":   (0,   30,   5),
+    }
+    for key, (low, high, max_penalty) in bad_rules.items():
+        values = _get_numeric_series(df, NUTRIENT_COLS[key])
+        score -= _scale_penalty(
+            values=values,
+            no_penalty_at=low,
+            max_penalty_at=high,
+            max_penalty=max_penalty,
+            missing_penalty_ratio=missing_penalty_ratio,
+        )
+
+    good_rules = {
+        "fiber":   (0, 3, 8),
+        "protein": (0, 5, 5),
+    }
+    for key, (low, high, max_bonus) in good_rules.items():
+        values = _get_numeric_series(df, NUTRIENT_COLS[key])
+        score += _scale_bonus(
+            values=values,
+            no_bonus_at=low,
+            max_bonus_at=high,
+            max_bonus=max_bonus,
+        )
+
+    return score.clip(lower=0, upper=100).round().astype(int)
+
+
+# 5.4 보조 점수들 — compute_safe_snack_score에서만 사용
+def compute_public_policy_score(df: pd.DataFrame) -> pd.Series:
+    """
+    기본 100점. is_high_calorie_low_nutrition() 룰에 걸리면 30점.
+    별도 컬럼이 없어 영양성분에서 직접 row 단위로 판정한다.
+    """
+    flagged = df.apply(lambda row: is_high_calorie_low_nutrition(row)[0], axis=1)
+    score = pd.Series(np.where(flagged, 30.0, 100.0), index=df.index)
+    return score.clip(lower=0, upper=100).round().astype(int)
+
+
+def compute_preference_score(
+    df: pd.DataFrame,
+    selected_tastes: list[str] | None = None,
+) -> pd.Series:
+    if not selected_tastes:
+        return pd.Series(100.0, index=df.index)
+    if "taste_tags" not in df.columns:
+        return pd.Series(60.0, index=df.index)
+
+    selected_tastes = [str(t).strip() for t in selected_tastes if str(t).strip()]
+    if not selected_tastes:
+        return pd.Series(100.0, index=df.index)
+
+    matched_counts = df["taste_tags"].apply(
+        lambda x: _contains_any_tag(x, selected_tastes)
+    )
+    match_ratio = matched_counts / len(selected_tastes)
+
+    # 취향은 안전보다 약한 조건 — 미일치도 60점은 부여
+    score = 60 + 40 * match_ratio
+    return score.clip(lower=0, upper=100).round().astype(int)
+
+
+# 5.5 기존 시그니처 유지용 wrapper — product_service/group_service가 그대로 사용
 def compute_nutrition_score(df: pd.DataFrame) -> pd.DataFrame:
     """
-    0~100 범위 점수로 정규화
-    기본 50점에서 좋은 성분은 가산, 나쁜 성분은 감점
+    0~100 영양 점수. 기존 호출부 호환을 위해 df → df 시그니처 유지.
+
+    원래 로직(50점 시작, 컬럼 max 정규화)에서 새 룰(100점 시작, 절대 임계값)로 교체.
+    결측은 약한 페널티(0.15)만 부과해 기존 동작과의 충격을 줄임 —
+    더 강한 결측 페널티가 필요하면 compute_safe_snack_score를 사용할 것.
     """
-    good = ["단백질(g)", "식이섬유(g)", "칼슘(mg)", "철(mg)"]
-    bad = ["당류(g)", "포화지방산(g)", "나트륨(mg)", "트랜스지방산(g)", "콜레스테롤(mg)"]
-
-    score = pd.Series(50.0, index=df.index)
-
-    for col in good:
-        if col in df.columns:
-            vals = df[col].fillna(0)
-            max_val = vals.max()
-            if max_val > 0:
-                score += (vals / max_val) * 12.5   # good 4개면 최대 +50
-
-    for col in bad:
-        if col in df.columns:
-            vals = df[col].fillna(0)
-            max_val = vals.max()
-            if max_val > 0:
-                score -= (vals / max_val) * 10.0   # bad 5개면 최대 -50
-
     df = df.copy()
-    df["nutrition_score"] = score.clip(lower=0, upper=100).round(2)
-    
+    df["nutrition_score"] = compute_nutrition_risk_score(df, missing_penalty_ratio=0.15)
+    return df
+
+
+# 5.6 최종 안심간식 적합도 점수 — 신규 호출자만 사용. nutrition_score를 덮지 않음.
+def compute_safe_snack_score(
+    df: pd.DataFrame,
+    selected_tastes: list[str] | None = None,
+) -> pd.DataFrame:
+    """
+    safe_snack_score =
+        nutrition_risk_score    * 0.70
+        + public_policy_score   * 0.15
+        + preference_score      * 0.15
+
+    기존 nutrition_score 컬럼은 그대로 유지하고, 보조 점수와
+    safe_snack_score를 새 컬럼으로 추가만 한다. (의미 충돌 방지)
+    """
+    df = df.copy()
+
+    df["nutrition_risk_score"] = compute_nutrition_risk_score(df)
+    df["public_policy_score"] = compute_public_policy_score(df)
+    df["preference_score"] = compute_preference_score(df, selected_tastes=selected_tastes)
+
+    df["safe_snack_score"] = (
+        df["nutrition_risk_score"]    * 0.70
+        + df["public_policy_score"]   * 0.15
+        + df["preference_score"]      * 0.15
+    ).clip(lower=0, upper=100).round().astype(int)
+
     return df
 
 

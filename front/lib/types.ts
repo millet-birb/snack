@@ -49,8 +49,16 @@ export interface Product {
   price: number;
   pricePerUnit: number;
   servingG: number;
+  foodWeight?: string;
+  weightG?: number | null;
+  itemCount?: number | null;
   nutritionScore: number;
   scorePerPrice: number;
+  // 안심간식 종합 점수 — 상세 페이지에서만 존재
+  safeSnackScore?: number | null;
+  nutritionRiskScore?: number | null;
+  publicPolicyScore?: number | null;
+  preferenceScore?: number | null;
   tasteTags: TasteTag[];
   safeFor: Condition[];
   warnFor: Condition[];

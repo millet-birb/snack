@@ -5,6 +5,8 @@ group_service.py
 
 from __future__ import annotations
 
+import math
+
 import pandas as pd
 
 from app.services.filter_engine import (
@@ -52,11 +54,57 @@ def _filter_by_tastes(df: pd.DataFrame, tastes: list[str]) -> pd.DataFrame:
     return df[df["taste_tags"].apply(lambda tags: match_tastes(tags, tastes))].copy()
 
 
-def _serialize_cart_item(row, quantity: int, group_label: str) -> dict:
-    """장바구니 아이템 직렬화"""
+def _filter_by_exclude_tastes(df: pd.DataFrame, exclude_tastes: list[str] | None) -> pd.DataFrame:
+    """제외할 맛 태그가 하나라도 붙은 제품을 빼고 반환 (예: '달달','카라멜')."""
+    if not exclude_tastes:
+        return df
+    excl = set(exclude_tastes)
+    mask = df["taste_tags"].apply(lambda tags: not (set(tags) & excl))
+    return df[mask].copy()
+
+
+def _get_pack_size(row) -> int:
+    """갯수(개) 컬럼 → int. 비어있거나 0/음수면 1로 처리."""
+    raw = row.get("갯수(개)", 1)
+    try:
+        if raw is None or (isinstance(raw, float) and pd.isna(raw)):
+            return 1
+        n = int(float(raw))
+        return n if n > 0 else 1
+    except (ValueError, TypeError):
+        return 1
+
+
+def _get_full_price(row) -> float:
+    """price 컬럼 → float. NaN/None은 0."""
+    raw = row.get("price", 0)
+    try:
+        if raw is None or (isinstance(raw, float) and pd.isna(raw)):
+            return 0.0
+        return float(raw)
+    except (ValueError, TypeError):
+        return 0.0
+
+
+def _calc_boxes_subtotal(row, pieces_needed: int) -> tuple[int, float]:
+    """
+    필요 낱개 수 → (구매할 박스 수, 합계 금액).
+    한 박스에 갯수(개)개 들어있고, 부분 박스는 올림 처리.
+    """
+    pack_size = _get_pack_size(row)
+    boxes = max(1, math.ceil(pieces_needed / pack_size))
+    subtotal = boxes * _get_full_price(row)
+    return boxes, subtotal
+
+
+def _serialize_cart_item(row, boxes: int, group_label: str) -> dict:
+    """
+    장바구니 아이템 직렬화.
+    quantity 필드는 '박스 수' (= 상품 단위) — 멀티팩이면 1박스에 갯수(개)개 들어있음.
+    """
     base = serialize_product(row)
-    base["quantity"] = quantity
-    base["subtotal"] = round(float(row.get("price_per_unit", 0)) * quantity, 0)
+    base["quantity"] = boxes
+    base["subtotal"] = round(boxes * _get_full_price(row), 0)
     base["groupLabel"] = group_label  # "전원" | "아토피 3명" | "질환없음 16명" 등
     return base
 
@@ -79,10 +127,13 @@ def recommend_mode_a(
     tastes: list[str],
     budget: int,
     allergy_conditions: list[str] = None,
+    exclude_tastes: list[str] | None = None,
 ) -> dict:
     """
     모든 질환 조건을 동시에 통과한 과자 리스트를 반환.
     사용자가 직접 선택 → 장바구니는 프론트에서 관리.
+    exclude_tastes 에 든 맛 태그(예: '달달','카라멜')는 결과에서 제외하며,
+    맛 완화(relaxed) 분기에서도 항상 적용된다.
     """
     total_people = group_info["totalPeople"]
     conditions = _get_all_conditions(group_info)
@@ -97,12 +148,14 @@ def recommend_mode_a(
     # 전체 질환 필터
     filtered = _filter_by_conditions(df, conditions)
     filtered = _filter_by_tastes(filtered, tastes)
+    filtered = _filter_by_exclude_tastes(filtered, exclude_tastes)
     filtered = filtered.sort_values("nutrition_score", ascending=False)
 
     relaxed = False
     if filtered.empty and tastes:
-        # 맛 조건 완화
+        # 맛 조건만 완화 — exclude_tastes는 사용자의 강한 의도이므로 유지
         filtered = _filter_by_conditions(df, conditions)
+        filtered = _filter_by_exclude_tastes(filtered, exclude_tastes)
         filtered = filtered.sort_values("nutrition_score", ascending=False)
         relaxed = True
 
@@ -128,6 +181,7 @@ def recommend_mode_b(
     tastes: list[str],
     budget: int,
     allergy_conditions: list[str] = None,
+    exclude_tastes: list[str] | None = None,
 ) -> dict:
     """
     그룹별로 분리하여 각 그룹에 맞는 과자 리스트 반환.
@@ -153,11 +207,13 @@ def recommend_mode_b(
 
         filtered = _filter_by_conditions(df, filter_conditions)
         filtered = _filter_by_tastes(filtered, tastes)
+        filtered = _filter_by_exclude_tastes(filtered, exclude_tastes)
         filtered = filtered.sort_values("nutrition_score", ascending=False)
 
         relaxed = False
         if filtered.empty and tastes:
             filtered = _filter_by_conditions(df, filter_conditions)
+            filtered = _filter_by_exclude_tastes(filtered, exclude_tastes)
             filtered = filtered.sort_values("nutrition_score", ascending=False)
             relaxed = True
 
@@ -176,6 +232,7 @@ def recommend_mode_b(
     # 질환 없음 그룹
     if normal_count > 0:
         filtered = _filter_by_tastes(df, tastes)
+        filtered = _filter_by_exclude_tastes(filtered, exclude_tastes)
         filtered = filtered.sort_values("nutrition_score", ascending=False)
 
         groups.append({
@@ -210,6 +267,7 @@ def recommend_mode_c(
     pinned_group_counts: dict = None,
     allergy_conditions: list[str] = None,
     same_snack: bool = True,
+    exclude_tastes: list[str] | None = None,
 ) -> dict:
     """
     자동으로 예산에 맞게 장바구니를 구성.
@@ -233,9 +291,8 @@ def recommend_mode_c(
     if pinned_ids:
         pinned_df = df[df["stable_id"].isin(pinned_ids)]
         for _, row in pinned_df.iterrows():
-            quantity = total_people * per_person
-            price = float(row.get("price_per_unit", 0))
-            subtotal = price * quantity
+            pieces_needed = total_people * per_person
+            boxes, subtotal = _calc_boxes_subtotal(row, pieces_needed)
 
             pin_warnings = _evaluate_warnings(row, all_conditions)
             if pin_warnings["warnFor"]:
@@ -246,7 +303,7 @@ def recommend_mode_c(
                     "warnIngredients": pin_warnings["warnIngredients"],
                 })
 
-            cart.append(_serialize_cart_item(row, quantity, "고정 핀 (전원)"))
+            cart.append(_serialize_cart_item(row, boxes, "고정 핀 (전원)"))
             remaining_budget -= subtotal
 
     pinned_product_ids = [item["id"] for item in cart if "id" in item]
@@ -277,6 +334,7 @@ def recommend_mode_c(
             filtered = _filter_by_conditions(df, filter_conds)
             filtered = filtered[~filtered["stable_id"].isin(pinned_product_ids)]
             filtered = _filter_by_tastes(filtered, tastes)
+            filtered = _filter_by_exclude_tastes(filtered, exclude_tastes)
 
             if filtered.empty:
                 warnings.append({
@@ -288,9 +346,8 @@ def recommend_mode_c(
 
             top = filtered.sort_values("nutrition_score", ascending=False).head(20)
             chosen_row = top.sample(1).iloc[0]
-            quantity = count * per_person
-            price = float(chosen_row.get("price_per_unit", 0))
-            subtotal = price * quantity
+            pieces_needed = count * per_person
+            boxes, subtotal = _calc_boxes_subtotal(chosen_row, pieces_needed)
 
             if remaining_budget < subtotal:
                 warnings.append({
@@ -300,27 +357,24 @@ def recommend_mode_c(
                 })
                 continue
 
-            used_id = str(chosen_row.get("stable_id", ""))
-            if used_id:
-                pinned_product_ids.append(used_id)
-
-            cart.append(_serialize_cart_item(chosen_row, quantity, f"{condition} {count}명"))
+            cart.append(_serialize_cart_item(chosen_row, boxes, f"{condition} {count}명"))
             remaining_budget -= subtotal
 
-        # 일반 아이
-        if normal_count > 0 and remaining_budget > 0:
-            filtered = df[~df["stable_id"].isin(pinned_product_ids)]
+        # 일반 아이 (같은걸먹을래요)
+        if normal_count > 0 and remaining_budget > 0 and "질환없음" not in skipped_conditions:
+            # same_snack은 그룹별 과자가 달라야 할 이유 없으므로 pinned 제외 안 함
+            filtered = df.copy()
             filtered = _filter_by_tastes(filtered, tastes)
+            filtered = _filter_by_exclude_tastes(filtered, exclude_tastes)
 
             if not filtered.empty:
                 top = filtered.sort_values("nutrition_score", ascending=False).head(20)
                 chosen_row = top.sample(1).iloc[0]
-                quantity = normal_count * per_person
-                price = float(chosen_row.get("price_per_unit", 0))
-                subtotal = price * quantity
+                pieces_needed = normal_count * per_person
+                boxes, subtotal = _calc_boxes_subtotal(chosen_row, pieces_needed)
 
                 if remaining_budget >= subtotal:
-                    cart.append(_serialize_cart_item(chosen_row, quantity, f"질환없음 {normal_count}명"))
+                    cart.append(_serialize_cart_item(chosen_row, boxes, f"질환없음 {normal_count}명"))
                     remaining_budget -= subtotal
                 else:
                     warnings.append({
@@ -349,10 +403,11 @@ def recommend_mode_c(
             if remaining_count <= 0:
                 continue
 
-            filtered = _filter_by_conditions(df, 
+            filtered = _filter_by_conditions(df,
                 allergy_conditions if condition == '알레르기' and allergy_conditions else [condition])
             filtered = filtered[~filtered["stable_id"].isin(pinned_product_ids)]
             filtered = _filter_by_tastes(filtered, tastes)
+            filtered = _filter_by_exclude_tastes(filtered, exclude_tastes)
 
             if filtered.empty:
                 warnings.append({
@@ -364,52 +419,94 @@ def recommend_mode_c(
 
             top = filtered.sort_values("nutrition_score", ascending=False).head(40)
             available = list(top.iterrows())
-            chosen_count = min(remaining_count, len(available))
 
             import random
             random.shuffle(available)
 
-            for i in range(chosen_count):
-                _, chosen_row = available[i]
-                quantity = per_person
-                price = float(chosen_row.get("price_per_unit", 0))
-                subtotal = price * quantity
+            # 과자 수보다 인원이 많으면 중복 허용
+            if len(available) < remaining_count:
+                warnings.append({
+                    "type": "duplicate_snack",
+                    "condition": condition,
+                    "message": f"{condition} 조건을 통과한 과자가 {len(available)}종뿐이에요. 일부 아이에게 같은 과자가 배정될 수 있어요.",
+                })
+                # 중복 허용: 인원수만큼 순환하며 담기
+                for i in range(remaining_count):
+                    chosen_row = available[i % len(available)][1]
+                    pieces_needed = per_person
+                    boxes, subtotal = _calc_boxes_subtotal(chosen_row, pieces_needed)
 
-                if remaining_budget < subtotal:
-                    warnings.append({
-                        "type": "budget_shortage",
-                        "condition": condition,
-                        "message": f"예산이 부족해요. {condition} 아이 일부 과자를 담지 못했어요.",
-                    })
-                    break
+                    if remaining_budget < subtotal:
+                        break
 
-                used_id = str(chosen_row.get("stable_id", ""))
-                if used_id:
-                    pinned_product_ids.append(used_id)
+                    cart.append(_serialize_cart_item(chosen_row, boxes, f"{condition} {count}명"))
+                    remaining_budget -= subtotal
+            else:
+                for i in range(remaining_count):
+                    _, chosen_row = available[i]
+                    pieces_needed = per_person
+                    boxes, subtotal = _calc_boxes_subtotal(chosen_row, pieces_needed)
 
-                cart.append(_serialize_cart_item(chosen_row, quantity, f"{condition} {count}명"))
-                remaining_budget -= subtotal
+                    if remaining_budget < subtotal:
+                        warnings.append({
+                            "type": "budget_shortage",
+                            "condition": condition,
+                            "message": f"예산이 부족해요. {condition} 아이 일부 과자를 담지 못했어요.",
+                        })
+                        break
 
-        # 일반 아이
-        if normal_count > 0 and remaining_budget > 0:
+                    used_id = str(chosen_row.get("stable_id", ""))
+                    if used_id:
+                        pinned_product_ids.append(used_id)
+
+                    cart.append(_serialize_cart_item(chosen_row, boxes, f"{condition} {count}명"))
+                    remaining_budget -= subtotal
+
+        # 일반 아이 (다른걸먹을래요) - 인원수만큼 각각 다른 과자
+        # 이미 핀된 질환없음 개수 계산
+        already_pinned_normal = sum(
+            cnt for label, cnt in (pinned_group_counts or {}).items()
+            if label.startswith("질환없음")
+        )
+        remaining_normal = normal_count - already_pinned_normal
+
+        if normal_count > 0 and remaining_budget > 0 and remaining_normal > 0:
             filtered = df[~df["stable_id"].isin(pinned_product_ids)]
             filtered = _filter_by_tastes(filtered, tastes)
+            filtered = _filter_by_exclude_tastes(filtered, exclude_tastes)
 
             if not filtered.empty:
-                top = filtered.sort_values("nutrition_score", ascending=False).head(20)
-                chosen_row = top.sample(1).iloc[0]
-                quantity = normal_count * per_person
-                price = float(chosen_row.get("price_per_unit", 0))
-                subtotal = price * quantity
+                top = filtered.sort_values("nutrition_score", ascending=False).head(40)
+                available = list(top.iterrows())
 
-                if remaining_budget >= subtotal:
-                    cart.append(_serialize_cart_item(chosen_row, quantity, f"질환없음 {normal_count}명"))
-                    remaining_budget -= subtotal
-                else:
+                import random
+                random.shuffle(available)
+
+                if len(available) < remaining_normal:
                     warnings.append({
-                        "type": "budget_shortage",
-                        "message": "남은 예산이 부족해 일반 아이 과자를 담지 못했어요.",
+                        "type": "duplicate_snack",
+                        "condition": "질환없음",
+                        "message": f"질환없음 조건을 통과한 과자가 {len(available)}종뿐이에요. 일부 아이에게 같은 과자가 배정될 수 있어요.",
                     })
+
+                for i in range(remaining_normal):
+                    chosen_row = available[i % len(available)][1] if i >= len(available) else available[i][1]
+                    pieces_needed = per_person
+                    boxes, subtotal = _calc_boxes_subtotal(chosen_row, pieces_needed)
+
+                    if remaining_budget < subtotal:
+                        warnings.append({
+                            "type": "budget_shortage",
+                            "message": "남은 예산이 부족해 일반 아이 과자를 담지 못했어요.",
+                        })
+                        break
+
+                    used_id = str(chosen_row.get("stable_id", ""))
+                    if used_id and i < len(available):
+                        pinned_product_ids.append(used_id)
+
+                    cart.append(_serialize_cart_item(chosen_row, boxes, f"질환없음 {normal_count}명"))
+                    remaining_budget -= subtotal
 
     total_price = budget - remaining_budget
 
@@ -449,7 +546,7 @@ def calculate_cart(
 
     for item in cart_items:
         product_id = item.get("productId")
-        quantity = item.get("quantity", 1)
+        boxes = int(item.get("quantity", 1) or 1)  # 프론트가 보내는 quantity는 박스 수
         group_label = item.get("groupLabel", "")
 
         matched = df[df["stable_id"] == str(product_id)]
@@ -457,8 +554,7 @@ def calculate_cart(
             continue
 
         row = matched.iloc[0]
-        price = float(row.get("price_per_unit", 0))
-        subtotal = price * quantity
+        subtotal = boxes * _get_full_price(row)
         total_price += subtotal
 
         # 질환 경고 확인
@@ -470,7 +566,7 @@ def calculate_cart(
                 "warnIngredients": pin_warnings["warnIngredients"],
             })
 
-        cart_item = _serialize_cart_item(row, quantity, group_label)
+        cart_item = _serialize_cart_item(row, boxes, group_label)
         cart.append(cart_item)
 
     remaining = budget - total_price

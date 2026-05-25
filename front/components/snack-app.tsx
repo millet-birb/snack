@@ -43,9 +43,17 @@ export function SnackApp() {
         {renderScreen()}
       </main>
 
+      <footer className="mx-auto max-w-4xl px-4 pb-28 pt-4 text-center text-xs leading-5 text-text-3">
+        <p>제품·원재료 데이터는 식품안전나라 OpenAPI를 기반으로 제공합니다.</p>
+        <p>
+          추천 결과는 원재료 키워드 및 영양 정보 분석 결과이며, 구매 전 제품 표시사항을
+          다시 확인해 주세요.
+        </p>
+      </footer>
+
       <BottomNav />
 
-      <ChatWidget />
+      {!showSplash && <ChatWidget />}
     </div>
   );
 }
