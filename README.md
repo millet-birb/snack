@@ -113,6 +113,17 @@ normalize_conditions → filter_safe_products → compute_nutrition_score
 
 `load_data()`가 합성해주는 파생 컬럼(`serving_g`, `<nutrient>_1회`, `price_per_unit`, `stable_id`)에 의존하므로 데이터 로딩을 우회하지 마세요.
 
+### 영양 점수 (filter_engine.py)
+- **`nutrition_score` (0–100)** — 100점에서 시작해 1회 제공량(`*_1회`) 기준 **절대 임계값**으로 위험 성분(당류·나트륨·포화/트랜스지방·열량·콜레스테롤)을 감점하고, 좋은 성분(식이섬유·단백질)을 가산합니다. 임계값은 `compute_nutrition_risk_score()`의 `bad_rules`/`good_rules`에 정의되어 있고, 결측치는 `missing_penalty_ratio`만큼만 부분 감점합니다.
+  - 이전(베이스 50점 + 컬럼 max 정규화) 로직과 달리 **점수가 DataFrame 필터링에 영향을 받지 않습니다** — 같은 제품이면 어디서 계산해도 같은 값.
+  - `compute_nutrition_score(df)`는 호출부 호환을 위해 얇은 wrapper로 남아 있고 내부에서 `compute_nutrition_risk_score(missing_penalty_ratio=0.15)`를 사용합니다.
+- **`safe_snack_score` (상세 페이지 전용)** — `compute_safe_snack_score()`가 만드는 종합 점수:
+  - `0.70 × nutrition_risk_score + 0.15 × public_policy_score + 0.15 × preference_score`
+  - `public_policy_score`: `is_high_calorie_low_nutrition`에 걸리면 30, 아니면 100.
+  - `preference_score`: 사용자가 고른 맛 태그가 없으면 100, 있으면 `60 + 40 × (일치 태그 수 / 선택 태그 수)`.
+  - **`nutrition_score`는 덮어쓰지 않고** 별도 컬럼(`nutrition_risk_score`, `public_policy_score`, `preference_score`, `safe_snack_score`)으로 추가됩니다.
+  - 현재는 `get_product_detail()`(상세 화면)에서만 호출되며, 목록 페이지는 성능 때문에 기본 `nutrition_score`만 계산합니다.
+
 ### 조건 어휘 매핑
 프론트(`소아천식`, `카페인`)와 백엔드(`천식`, `카페인주의`)의 조건 키가 다릅니다.
 유일한 번역 지점은 `product_filters.normalize_conditions()`이며, `filter_engine`을 직접 호출하는 코드(예: `group_service.py`)는 이미 백엔드 어휘를 사용한다고 가정합니다.
@@ -122,9 +133,20 @@ normalize_conditions → filter_safe_products → compute_nutrition_score
 프로덕션 데이터는 `NEXT_PUBLIC_BACKEND_URL`로 FastAPI에 직접 요청합니다. (`front/app/api/*`의 stub은 mock 데이터용입니다.)
 
 ### 챗봇 (OpenAI tool-use)
-`routers/chat.py`는 `search_snacks` 함수 도구를 등록한 뒤 최대 4턴까지 루프를 돕니다.
-입력 토큰 절약을 위해 **첫 턴에만 tools 스키마를 전송**하고, `max_tokens=500`, `MAX_HISTORY=6`, 도구 응답은 5개 필드로 트리밍합니다.
+`routers/chat.py`는 두 개의 함수 도구를 등록한 뒤 최대 4턴까지 루프를 돕니다.
+
+- **`search_snacks`** — `product_service.get_products()`로 단일 추천을 검색합니다. 파라미터:
+  - `conditions` (필수, 프론트엔드 키 — 내부에서 `normalize_conditions` 변환)
+  - `query`, `budget` (사용자가 가격을 안 말하면 LLM이 비워두도록 시스템 프롬프트로 강제 — `budget=0`이면 `apply_budget_filter`가 가격 컷오프를 건너뜀)
+  - `maxCaloriesPerServing` — 1회 섭취량당 칼로리 상한
+  - `sortBy` (`nutritionScore` 기본 | `lowCalorie`) — '저칼로리/다이어트' 요청 시 LLM이 자동으로 사용
+  - `maxCaloriesPerServing`/`sortBy`는 `chat.py`에서 **후처리**합니다(`get_products`가 1회 칼로리 정렬을 지원하지 않음). 이 경우 후보를 30개 뽑아 필터·정렬 후 상위 5개만 LLM에 넘깁니다.
+- **`recommend_group_purchase`** — `group_service.recommend_mode_a/b/c()`로 단체구매 추천을 만듭니다. `diseaseGroups`는 인원수 맵이고, 세부 알레르겐은 `allergyConditions`에 따로 둡니다. `tastes`/`excludeTastes`는 29종의 `TASTE_OPTIONS`에서 고르며, '단 거 빼고' 같은 표현은 반드시 `excludeTastes`에 들어갑니다.
+
+토큰 절약: **첫 턴에만 tools 스키마를 전송**하고 `max_tokens=500`, `MAX_HISTORY=6`, 도구 응답은 핵심 필드만 트리밍합니다.
 응답은 `_RESPONSE_CACHE`(LRU 128)로 메모이즈됩니다 — 워커별/휘발성이며 history는 키에 포함되지 않습니다.
+
+보안: 클라이언트가 보낼 수 있는 `role`은 `user`/`assistant`만 허용합니다(`system`/`tool` 주입 차단). `message`/`history` 길이 상한이 있고, 오류 응답은 위생화되어 OPENAI 키가 없으면 **503**, OpenAI 호출 실패는 **502**로 일반 메시지만 돌려줍니다(상세 오류는 서버 로그에만).
 
 ---
 
