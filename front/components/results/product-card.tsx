@@ -17,7 +17,8 @@ export function ProductCard({ product, index }: ProductCardProps) {
     return new Intl.NumberFormat('ko-KR').format(value);
   };
 
-  const grade = scoreToGrade(product.nutritionScore);
+  const gradeScore = product.safeSnackScore ?? product.nutritionScore;
+  const grade = scoreToGrade(gradeScore);
 
   const handleClick = () => {
     setSelectedProduct(product);

@@ -83,6 +83,9 @@ export function DetailScreen() {
         if (conditionList.length > 0) {
           params.set('conditions', conditionList.join(','));
         }
+        if (tasteList.length > 0) {
+          params.set('tastes', tasteList.join(','));
+        }
         const res = await fetch(
           `${BACKEND_URL}/api/products/${selectedProduct.id}/similar?${params.toString()}`,
         );
@@ -100,7 +103,7 @@ export function DetailScreen() {
     };
 
     fetchSimilar();
-  }, [selectedProduct?.id, conditionList]);
+  }, [selectedProduct?.id, conditionList, tasteList]);
 
   const product = detail ?? selectedProduct;
 
@@ -369,7 +372,11 @@ export function DetailScreen() {
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => setSelectedProduct(item)}
+                    onClick={() => {
+                      setDetail(null);
+                      setSelectedProduct(item);
+                      window.scrollTo({ top: 0, behavior: 'smooth' });
+                    }}
                     className="rounded-2xl bg-bg-warm p-3 text-left transition-shadow hover:shadow-sm"
                   >
                     <div className="flex justify-center">

@@ -17,6 +17,7 @@ import numpy as np
 
 from app.services.filter_engine import (
     compute_nutrition_score,
+    compute_safe_snack_score,
     filter_safe_products,
 )
 from app.services.product_filters import normalize_conditions
@@ -25,9 +26,28 @@ from app.services.product_serializer import serialize_product
 from app.services.similarity_repository import get_embeddings
 
 
+def _grade_rank(score: float) -> int:
+    """Return a lower rank for a better displayed grade (A=0 .. D=3)."""
+    if score >= 85:
+        return 0
+    if score >= 70:
+        return 1
+    if score >= 55:
+        return 2
+    return 3
+
+
+def _is_better_alternative(query_grade_rank: int, candidate_grade_rank: int) -> bool:
+    """Allow same-grade alternatives only when the selected product is already A."""
+    if query_grade_rank == 0:
+        return candidate_grade_rank == 0
+    return candidate_grade_rank < query_grade_rank
+
+
 def find_similar(
     product_id: str,
     conditions: Optional[list[str]] = None,
+    selected_tastes: Optional[list[str]] = None,
     top_k: int = 5,
 ) -> list[dict]:
     bundle = get_embeddings()
@@ -41,6 +61,13 @@ def find_similar(
         return []
 
     df = get_base_df().copy()
+    df = compute_nutrition_score(df)
+    df = compute_safe_snack_score(df, selected_tastes=selected_tastes)
+
+    query_rows = df[df["stable_id"].astype(str) == str(product_id)]
+    if query_rows.empty:
+        return []
+    query_grade_rank = _grade_rank(float(query_rows.iloc[0]["safe_snack_score"]))
 
     normalized = normalize_conditions(conditions or [])
     if normalized:
@@ -49,13 +76,14 @@ def find_similar(
     if df.empty:
         return []
 
-    df = compute_nutrition_score(df)
-
     candidate_emb_indices: list[int] = []
     candidate_df_positions: list[int] = []
     for df_pos, sid in enumerate(df["stable_id"].astype(str).tolist()):
         emb_idx = id_to_index.get(sid)
         if emb_idx is None or emb_idx == query_index:
+            continue
+        candidate_grade_rank = _grade_rank(float(df.iloc[df_pos]["safe_snack_score"]))
+        if not _is_better_alternative(query_grade_rank, candidate_grade_rank):
             continue
         candidate_emb_indices.append(emb_idx)
         candidate_df_positions.append(df_pos)

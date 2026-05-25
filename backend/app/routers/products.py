@@ -52,16 +52,19 @@ def products(
 def product_similar(
     product_id: str,
     conditions: str = Query(default="", max_length=MAX_FILTER_LEN),
+    tastes: str = Query(default="", max_length=MAX_FILTER_LEN),
     top_k: int = Query(default=5, ge=1, le=MAX_SIMILAR_TOP_K),
 ):
     if len(product_id) > 200:
         raise HTTPException(status_code=400, detail="invalid product id")
 
     condition_list = [c.strip() for c in conditions.split(",") if c.strip()]
+    taste_list = [t.strip() for t in tastes.split(",") if t.strip()]
     return {
         "products": find_similar(
             product_id,
             conditions=condition_list,
+            selected_tastes=taste_list,
             top_k=top_k,
         )
     }

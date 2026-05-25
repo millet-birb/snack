@@ -86,6 +86,11 @@ def apply_sort(df: pd.DataFrame, sort: str) -> pd.DataFrame:
     else:
         temp["nutrition_score"] = 0
 
+    if "safe_snack_score" in temp.columns:
+        temp["safe_snack_score"] = pd.to_numeric(temp["safe_snack_score"], errors="coerce").fillna(0)
+    else:
+        temp["safe_snack_score"] = temp["nutrition_score"]
+
     sort = (sort or "price_asc").strip()
 
     if sort == "price_desc":
@@ -96,8 +101,8 @@ def apply_sort(df: pd.DataFrame, sort: str) -> pd.DataFrame:
 
     if sort == "score_desc":
         return temp.sort_values(
-            by=["nutrition_score", "price"],
-            ascending=[False, True]
+            by=["safe_snack_score", "nutrition_score", "price"],
+            ascending=[False, False, True]
         ).copy()
 
     return temp.sort_values(

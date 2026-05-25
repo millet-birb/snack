@@ -49,6 +49,7 @@ def get_products(
         df = filter_safe_products(df, normalized_conditions)
 
     df = compute_nutrition_score(df)
+    df = compute_safe_snack_score(df, selected_tastes=tastes or None)
 
     df = apply_query_filter(df, query)
     df = apply_taste_filter(df, tastes)
