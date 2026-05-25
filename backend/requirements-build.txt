@@ -1,0 +1,9 @@
+# 오프라인 빌드용 의존성 (Render 배포에는 포함하지 않음).
+# build_embeddings.py로 임베딩 .npy 파일을 생성할 때만 필요하다.
+# 런타임 API 서버는 numpy(이미 pandas 의존성)만으로 동작한다.
+#
+# 사용법:
+#   pip install -r requirements-build.txt
+#   python -m app.scripts.build_embeddings
+
+sentence-transformers>=3.0,<4.0

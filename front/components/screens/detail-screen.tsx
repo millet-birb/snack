@@ -24,14 +24,17 @@ const ALL_CONDITIONS = [
 type DetailCondition = (typeof ALL_CONDITIONS)[number];
 
 export function DetailScreen() {
-  const { selectedProduct, setCurrentView, conditions, tastes } = useFilterStore();
+  const { selectedProduct, setCurrentView, setSelectedProduct, conditions, tastes } = useFilterStore();
 
   const [detail, setDetail] = useState<Product | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [similar, setSimilar] = useState<Product[]>([]);
+  const [similarLoading, setSimilarLoading] = useState(false);
 
   // Set identity가 매번 바뀌므로 배열로 메모해 의존성 배열에 안전하게 넣음
   const tasteList = useMemo(() => Array.from(tastes ?? []), [tastes]);
+  const conditionList = useMemo(() => Array.from(conditions ?? []), [conditions]);
 
   useEffect(() => {
     if (!selectedProduct?.id) return;
@@ -66,6 +69,38 @@ export function DetailScreen() {
 
     fetchDetail();
   }, [selectedProduct, tasteList]);
+
+  useEffect(() => {
+    if (!selectedProduct?.id) {
+      setSimilar([]);
+      return;
+    }
+
+    const fetchSimilar = async () => {
+      try {
+        setSimilarLoading(true);
+        const params = new URLSearchParams({ top_k: '5' });
+        if (conditionList.length > 0) {
+          params.set('conditions', conditionList.join(','));
+        }
+        const res = await fetch(
+          `${BACKEND_URL}/api/products/${selectedProduct.id}/similar?${params.toString()}`,
+        );
+        if (!res.ok) {
+          throw new Error(`유사 상품 조회 실패: ${res.status}`);
+        }
+        const data = await res.json();
+        setSimilar(Array.isArray(data?.products) ? data.products : []);
+      } catch (err) {
+        console.error(err);
+        setSimilar([]);
+      } finally {
+        setSimilarLoading(false);
+      }
+    };
+
+    fetchSimilar();
+  }, [selectedProduct?.id, conditionList]);
 
   const product = detail ?? selectedProduct;
 
@@ -311,6 +346,56 @@ export function DetailScreen() {
             <div className="mt-3 rounded-2xl bg-bg-warm p-4 text-sm leading-7 text-text-2">
               {product.ingredientsRaw || '원재료 정보 없음'}
             </div>
+          </div>
+
+          <div className="mt-6">
+            <h2 className="text-sm font-semibold text-text">
+              비슷한 안전 대안
+              {conditionList.length > 0 && (
+                <span className="ml-2 text-[11px] font-normal text-text-3">
+                  · 선택한 조건 통과
+                </span>
+              )}
+            </h2>
+            {similarLoading ? (
+              <p className="mt-3 text-xs text-text-3">유사 상품을 불러오는 중...</p>
+            ) : similar.length === 0 ? (
+              <p className="mt-3 text-xs text-text-3">
+                유사한 대안을 찾지 못했어요.
+              </p>
+            ) : (
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                {similar.map((item) => (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setSelectedProduct(item)}
+                    className="rounded-2xl bg-bg-warm p-3 text-left transition-shadow hover:shadow-sm"
+                  >
+                    <div className="flex justify-center">
+                      {item.imageUrl ? (
+                        <img
+                          src={item.imageUrl}
+                          alt={item.name}
+                          className="h-20 w-20 rounded-xl object-cover"
+                        />
+                      ) : (
+                        <div className="flex h-20 w-20 items-center justify-center rounded-xl bg-surface text-3xl">
+                          🍪
+                        </div>
+                      )}
+                    </div>
+                    <div className="mt-2 truncate text-[11px] text-text-3">
+                      {item.brand}
+                    </div>
+                    <div className="line-clamp-2 text-xs font-semibold text-text">
+                      {item.name}
+                    </div>
+                    <div className="mt-1 text-xs text-primary">{item.price}원</div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <button

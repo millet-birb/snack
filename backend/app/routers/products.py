@@ -5,6 +5,7 @@ from app.services.product_service import (
     get_products,
     get_stats,
 )
+from app.services.similarity_service import find_similar
 
 # 모든 상한선은 DoS 방지 목적.
 # 클라이언트가 per_page=99999999 같은 값으로 메모리/CPU 폭주를 일으키지 못하게 한다.
@@ -13,6 +14,7 @@ MAX_PER_PAGE = 100
 MAX_BUDGET = 100_000_000          # 1억 원
 MAX_QUERY_LEN = 200
 MAX_FILTER_LEN = 500              # conditions/tastes 콤마 구분 문자열 전체 길이
+MAX_SIMILAR_TOP_K = 20
 
 router = APIRouter()
 
@@ -44,6 +46,25 @@ def products(
         page=page,
         per_page=per_page,
     )
+
+
+@router.get("/products/{product_id}/similar")
+def product_similar(
+    product_id: str,
+    conditions: str = Query(default="", max_length=MAX_FILTER_LEN),
+    top_k: int = Query(default=5, ge=1, le=MAX_SIMILAR_TOP_K),
+):
+    if len(product_id) > 200:
+        raise HTTPException(status_code=400, detail="invalid product id")
+
+    condition_list = [c.strip() for c in conditions.split(",") if c.strip()]
+    return {
+        "products": find_similar(
+            product_id,
+            conditions=condition_list,
+            top_k=top_k,
+        )
+    }
 
 
 @router.get("/products/{product_id}")
