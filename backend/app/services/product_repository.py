@@ -1,8 +1,11 @@
+import logging
+import os
 import sqlite3
 from functools import lru_cache
 from pathlib import Path
 
 import pandas as pd
+from dotenv import load_dotenv
 
 from app.services.filter_engine import load_data, tag_taste
 
@@ -13,6 +16,10 @@ CSV_PATH = DATA_DIR / "최종데이터 전처리_final.csv"
 IMAGE_CSV_PATH = DATA_DIR / "product_images_final.csv"
 DB_PATH = DATA_DIR / "snack_products.sqlite3"
 DEFAULT_IMAGE_URL = "/product-images/과자.png"
+SUPABASE_TABLE = "products"
+SUPABASE_PAGE_SIZE = 1000
+
+logger = logging.getLogger(__name__)
 
 PRODUCT_NAME_COL = "품목명"
 BRAND_COL = "제조사명"
@@ -35,6 +42,42 @@ def get_image_df() -> pd.DataFrame:
         subset=[PRODUCT_NAME_COL, BRAND_COL],
         keep="first",
     )
+
+
+def _load_from_supabase() -> pd.DataFrame | None:
+    load_dotenv(BASE_DIR.parent / ".env")
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    if not url or not key:
+        return None
+
+    try:
+        from supabase import create_client
+    except ModuleNotFoundError:
+        logger.warning("supabase package not installed; falling back to local data")
+        return None
+
+    try:
+        client = create_client(url, key)
+        rows: list[dict] = []
+        start = 0
+        while True:
+            end = start + SUPABASE_PAGE_SIZE - 1
+            resp = client.table(SUPABASE_TABLE).select("*").range(start, end).execute()
+            batch = resp.data or []
+            rows.extend(batch)
+            if len(batch) < SUPABASE_PAGE_SIZE:
+                break
+            start += SUPABASE_PAGE_SIZE
+    except Exception:
+        logger.exception("Failed to load products from Supabase; falling back to local data")
+        return None
+
+    if not rows:
+        return None
+
+    logger.info("Loaded %d products from Supabase", len(rows))
+    return pd.DataFrame(rows)
 
 
 def _load_from_db() -> pd.DataFrame | None:
@@ -92,7 +135,9 @@ def _ensure_taste_tags(df: pd.DataFrame) -> pd.DataFrame:
 
 @lru_cache(maxsize=1)
 def get_base_df() -> pd.DataFrame:
-    df = _load_from_db()
+    df = _load_from_supabase()
+    if df is None:
+        df = _load_from_db()
     if df is None:
         df = _load_from_csv()
 
