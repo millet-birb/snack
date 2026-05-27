@@ -11,16 +11,20 @@ app = FastAPI(
 )
 
 app.add_middleware(
-     CORSMiddleware,
-    allow_origins=["https://<snack-woad.vercel.app>"],
+    CORSMiddleware,
+    allow_origins=[
+        "https://snack-woad.vercel.app",
+        "http://localhost:3000",
+    ],
     allow_credentials=True,
-    allow_methods=["GET", "POST", "OPTIONS"],
-    allow_headers=["Content-Type"],
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(products_router, prefix="/api")
 app.include_router(group_router)
 app.include_router(chat_router, prefix="/api")
+
 
 @app.get("/")
 def root():
