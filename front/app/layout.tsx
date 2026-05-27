@@ -34,19 +34,19 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
-        url: 'product-images/노랑다람쥐.png',
+        url: '/product-images/노랑다람쥐.png',
         media: '(prefers-color-scheme: light)',
       },
       {
-        url: 'product-images/노랑다람쥐.png',
+        url: '/product-images/노랑다람쥐.png',
         media: '(prefers-color-scheme: dark)',
       },
       {
-        url: 'product-images/노랑다람쥐.png',
+        url: '/product-images/노랑다람쥐.png',
         type: 'image/svg+xml',
       },
     ],
-    apple: 'product-images/노랑다람쥐.png',
+    apple: '/product-images/노랑다람쥐.png',
   },
 }
 
