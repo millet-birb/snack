@@ -27,7 +27,7 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: '두쫀쿠가고 버터떡왔다 | 질환 아동 안심 과자 추천',
+  title: '스낵몬스터 | 콰작 - 질환 아동 안심 과자 추천',
   description: '소아 질환(알레르기, 아토피, 천식 등)을 가진 아이의 보호자가 질환·예산·맛 조건에 맞는 안전한 과자를 즉시 찾을 수 있는 서비스입니다.',
   generator: 'v0.app',
   keywords: ['과자 추천', '어린이 간식', '알레르기', '아토피', '소아 당뇨', '안심 과자'],
@@ -42,7 +42,7 @@ export const metadata: Metadata = {
         media: '(prefers-color-scheme: dark)',
       },
       {
-        url: '/icon.svg',
+        url: 'product-images/노랑다람쥐.png',
         type: 'image/svg+xml',
       },
     ],
