@@ -36,6 +36,7 @@ logger = logging.getLogger(__name__)
 
 # gpt-4o-mini: 저렴하고 빠른 모델. 개발/학습 단계에 적합하다.
 MODEL = "gpt-4o-mini"
+GROUP_PURCHASE_MAX_BUDGET = 5_000_000  # 500만 원
 
 # 챗봇이 검색에 사용할 수 있는 건강 상태 목록 (프론트엔드 조건 키와 동일).
 # "알레르기"는 19개 알레르겐 전체를 막는 광범위 옵션이므로,
@@ -118,6 +119,7 @@ SYSTEM_PROMPT = (
     "(초코까지 빼고 싶다는 명확한 표현이 있으면 \"초코\"도 추가). "
     "특정 맛을 원한다는 표현('짭짤한', '치즈맛')만 tastes에 넣고, '제외'는 절대 tastes 에 넣지 마. "
     "tastes와 excludeTastes에서 같은 태그를 동시에 쓰지 마."
+    "위 내용과 관련된 질문이 아니면 절대 대답하지마. 식품관련된 질문만 대답하도록 되어있다고 안내하는 멘트를 보내줘"
 )
 
 # ---- OpenAI에 알려줄 '도구' 설명 -------------------------------------------
@@ -360,6 +362,8 @@ def run_group_purchase(args: dict) -> dict:
     budget = int(args.get("budget") or 0)
     if total_people <= 0 or budget <= 0:
         return {"error": "totalPeople 과 budget 은 양수여야 해요."}
+    if budget > GROUP_PURCHASE_MAX_BUDGET:
+        return {"error": "단체구매 총 예산은 최대 500만원까지 입력할 수 있어요."}
 
     raw_groups: dict = args.get("diseaseGroups") or {}
     front_keys = list(raw_groups.keys())

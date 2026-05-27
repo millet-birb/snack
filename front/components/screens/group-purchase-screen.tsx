@@ -4,6 +4,7 @@ import { useState, useCallback } from 'react';
 import { useFilterStore } from '@/lib/filter-store';
 
 type Mode = 'A' | 'B' | 'C' | null;
+const MAX_GROUP_BUDGET = 5_000_000;
 
 const ALL_CONDITIONS = [
   { id: '아토피',      label: '아토피 피부염', emoji: '🌿', bgColor: '#FFF5E0' },
@@ -95,6 +96,7 @@ export function GroupPurchaseScreen() {
     0,
     totalPeople - Object.values(diseaseGroups).reduce((a, b) => a + b, 0) - allergyCount
   );
+  const isBudgetOverLimit = budget > MAX_GROUP_BUDGET;
 
   // 백엔드로 넘길 diseaseGroups 생성
   const buildDiseaseGroups = () => {
@@ -113,6 +115,21 @@ export function GroupPurchaseScreen() {
 
   const API_BASE = process.env.NEXT_PUBLIC_BACKEND_URL || 'http://127.0.0.1:8000';
 
+  const handleBudgetChange = (value: number) => {
+    setBudget(value);
+    if (value <= MAX_GROUP_BUDGET) return;
+
+    setMode(null);
+    setProducts([]);
+    setGroups([]);
+    setCart([]);
+    setWarnings([]);
+    setPinnedItems([]);
+    setTotalPrice(0);
+    setRemainingBudget(0);
+    setBudgetExceeded(false);
+  };
+
   const recalcCart = (newCart: CartItem[]) => {
     const newTotal = newCart.reduce((sum, c) => sum + c.subtotal, 0);
     setCart(newCart);
@@ -122,6 +139,7 @@ export function GroupPurchaseScreen() {
   };
 
   const callModeA = async () => {
+    if (isBudgetOverLimit) return;
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/api/group/mode-a`, {
@@ -138,6 +156,7 @@ export function GroupPurchaseScreen() {
   };
 
   const callModeB = async () => {
+    if (isBudgetOverLimit) return;
     setLoading(true);
     try {
       const res = await fetch(`${API_BASE}/api/group/mode-b`, {
@@ -153,6 +172,7 @@ export function GroupPurchaseScreen() {
   };
 
   const callModeC = async (currentPinnedItems?: CartItem[], currentSameSnack?: boolean) => {
+    if (isBudgetOverLimit) return;
     const pinned = currentPinnedItems ?? pinnedItems;
     const sameSnack = currentSameSnack !== undefined ? currentSameSnack : cModeOption === 'same';
     setLoading(true);
@@ -188,6 +208,7 @@ export function GroupPurchaseScreen() {
   };
 
   const handleModeSelect = (selected: Mode) => {
+    if (isBudgetOverLimit) return;
     // 모드 바꾸면 핀 초기화 먼저
     setPinnedItems([]);
     setMode(selected);
@@ -389,11 +410,21 @@ export function GroupPurchaseScreen() {
         <div>
           <label className="text-sm text-gray-600 mb-1 block">총 예산</label>
           <input
-            type="number" min={0} value={budget || ''}
-            onChange={(e) => setBudget(Number(e.target.value))}
-            placeholder="예) 50,000" className="border rounded-lg px-3 py-2 w-full text-sm"
+            type="number" min={0} max={MAX_GROUP_BUDGET} value={budget || ''}
+            onChange={(e) => handleBudgetChange(Number(e.target.value))}
+            aria-invalid={isBudgetOverLimit}
+            placeholder="예) 50,000"
+            className={`border rounded-lg px-3 py-2 w-full text-sm ${
+              isBudgetOverLimit ? 'border-red-500 bg-red-50' : ''
+            }`}
           />
-          <p className="text-xs text-gray-400 mt-1">💡 최대 500만원까지 입력 가능해요</p>
+          {isBudgetOverLimit ? (
+            <p className="text-xs text-red-500 font-medium mt-1">
+              예산 초과입니다! 최대 500만원까지 입력 가능합니다.
+            </p>
+          ) : (
+            <p className="text-xs text-gray-400 mt-1">💡 최대 500만원까지 입력 가능해요</p>
+          )}
         </div>
       </section>
 
@@ -409,9 +440,14 @@ export function GroupPurchaseScreen() {
             ].map((m) => (
               <button
                 key={m.id}
+                disabled={isBudgetOverLimit}
                 onClick={() => handleModeSelect(m.id as Mode)}
                 className={`rounded-xl p-3 text-left border-2 transition-all ${
-                  mode === m.id ? 'border-[#D9472E] bg-[#FFF0ED]' : 'border-gray-200 bg-white'
+                  isBudgetOverLimit
+                    ? 'border-gray-200 bg-gray-50 text-gray-400 cursor-not-allowed'
+                    : mode === m.id
+                      ? 'border-[#D9472E] bg-[#FFF0ED]'
+                      : 'border-gray-200 bg-white'
                 }`}
               >
                 <div className="font-bold text-sm">{m.label}</div>

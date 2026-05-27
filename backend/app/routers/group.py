@@ -20,7 +20,7 @@ router = APIRouter(prefix="/api/group", tags=["group"])
 # 어린이집/학교 단위 단체 구매를 가정한 현실적인 상한이다.
 MAX_PEOPLE = 1000
 MAX_DISEASE_GROUPS = 50
-MAX_BUDGET = 100_000_000          # 1억 원
+MAX_BUDGET = 5_000_000            # 500만 원
 MAX_PER_PERSON = 100
 MAX_LIST = 100
 MAX_QUANTITY = 10_000
