@@ -13,7 +13,7 @@ export interface Stats {
 
 // 백엔드 연결 실패 시 보여줄 기본값
 const FALLBACK: Stats = {
-  totalProducts: 542,
+  totalProducts: 539,
   totalConditions: 8,
   totalTasteCategories: 30,
 };
